@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
         "-l",
         help="Logging level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        default="INFO",
+        default=None,
     )
 
     parser.add_argument(
@@ -126,6 +126,7 @@ async def main_async() -> int:
         best_program = await openevolve.run(
             iterations=args.iterations,
             target_score=args.target_score,
+            checkpoint_path=args.checkpoint,
         )
 
         # Get the checkpoint path
@@ -145,7 +146,11 @@ async def main_async() -> int:
         print(f"\nEvolution complete!")
         print(f"Best program metrics:")
         for name, value in best_program.metrics.items():
-            print(f"  {name}: {value:.4f}")
+            # Handle mixed types: format numbers as floats, others as strings
+            if isinstance(value, (int, float)):
+                print(f"  {name}: {value:.4f}")
+            else:
+                print(f"  {name}: {value}")
 
         if latest_checkpoint:
             print(f"\nLatest checkpoint saved at: {latest_checkpoint}")

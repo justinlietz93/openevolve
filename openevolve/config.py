@@ -33,6 +33,9 @@ class LLMModelConfig:
     retries: int = None
     retry_delay: int = None
 
+    # Reproducibility
+    random_seed: Optional[int] = None
+
 
 @dataclass
 class LLMConfig(LLMModelConfig):
@@ -53,7 +56,7 @@ class LLMConfig(LLMModelConfig):
     retry_delay: int = 5
 
     # n-model configuration for evolution LLM ensemble
-    models: List[LLMModelConfig] = field(default_factory=lambda: [LLMModelConfig()])
+    models: List[LLMModelConfig] = field(default_factory=list)
 
     # n-model configuration for evaluator LLM ensemble
     evaluator_models: List[LLMModelConfig] = field(default_factory=lambda: [])
@@ -67,24 +70,34 @@ class LLMConfig(LLMModelConfig):
     def __post_init__(self):
         """Post-initialization to set up model configurations"""
         # Handle backward compatibility for primary_model(_weight) and secondary_model(_weight).
-        if (self.primary_model or self.primary_model_weight) and len(self.models) < 1:
-            # Ensure we have a primary model
-            self.models.append(LLMModelConfig())
         if self.primary_model:
-            self.models[0].name = self.primary_model
-        if self.primary_model_weight:
-            self.models[0].weight = self.primary_model_weight
+            # Create primary model
+            primary_model = LLMModelConfig(
+                name=self.primary_model,
+                weight=self.primary_model_weight or 1.0
+            )
+            self.models.append(primary_model)
 
-        if (self.secondary_model or self.secondary_model_weight) and len(self.models) < 2:
-            # Ensure we have a second model
-            self.models.append(LLMModelConfig())
         if self.secondary_model:
-            self.models[1].name = self.secondary_model
-        if self.secondary_model_weight:
-            self.models[1].weight = self.secondary_model_weight
+            # Create secondary model (only if weight > 0)
+            if self.secondary_model_weight is None or self.secondary_model_weight > 0:
+                secondary_model = LLMModelConfig(
+                    name=self.secondary_model,
+                    weight=self.secondary_model_weight if self.secondary_model_weight is not None else 0.2
+                )
+                self.models.append(secondary_model)
+
+        # Only validate if this looks like a user config (has some model info)
+        # Don't validate during internal/default initialization
+        if (self.primary_model or self.secondary_model or 
+            self.primary_model_weight or self.secondary_model_weight) and not self.models:
+            raise ValueError(
+                "No LLM models configured. Please specify 'models' array or "
+                "'primary_model' in your configuration."
+            )
 
         # If no evaluator models are defined, use the same models as for evolution
-        if not self.evaluator_models or len(self.evaluator_models) < 1:
+        if not self.evaluator_models:
             self.evaluator_models = self.models.copy()
 
         # Update models with shared configuration values
@@ -97,6 +110,7 @@ class LLMConfig(LLMModelConfig):
             "timeout": self.timeout,
             "retries": self.retries,
             "retry_delay": self.retry_delay,
+            "random_seed": self.random_seed,
         }
         self.update_model_params(shared_config)
 
@@ -133,6 +147,25 @@ class PromptConfig:
     max_artifact_bytes: int = 20 * 1024  # 20KB in prompt
     artifact_security_filter: bool = True
 
+    # Feature extraction and program labeling
+    suggest_simplification_after_chars: Optional[int] = (
+        500  # Suggest simplifying if program exceeds this many characters
+    )
+    include_changes_under_chars: Optional[int] = (
+        100  # Include change descriptions in features if under this length
+    )
+    concise_implementation_max_lines: Optional[int] = (
+        10  # Label as "concise" if program has this many lines or fewer
+    )
+    comprehensive_implementation_min_lines: Optional[int] = (
+        50  # Label as "comprehensive" if program has this many lines or more
+    )
+
+    # Backward compatibility - deprecated
+    code_length_threshold: Optional[int] = (
+        None  # Deprecated: use suggest_simplification_after_chars
+    )
+
 
 @dataclass
 class DatabaseConfig:
@@ -141,6 +174,9 @@ class DatabaseConfig:
     # General settings
     db_path: Optional[str] = None  # Path to store database on disk
     in_memory: bool = True
+
+    # Prompt and response logging to programs/<id>.json
+    log_prompts: bool = True
 
     # Evolutionary parameters
     population_size: int = 1000
@@ -154,15 +190,29 @@ class DatabaseConfig:
     diversity_metric: str = "edit_distance"  # Options: "edit_distance", "feature_based"
 
     # Feature map dimensions for MAP-Elites
-    feature_dimensions: List[str] = field(default_factory=lambda: ["score", "complexity"])
-    feature_bins: int = 10
+    # Default to complexity and diversity for better exploration
+    # CRITICAL: For custom dimensions, evaluators must return RAW VALUES, not bin indices
+    # Built-in: "complexity", "diversity", "score" (always available)
+    # Custom: Any metric from your evaluator (must be continuous values)
+    feature_dimensions: List[str] = field(
+        default_factory=lambda: ["complexity", "diversity"],
+        metadata={
+            "help": "List of feature dimensions for MAP-Elites grid. "
+                   "Built-in dimensions: 'complexity', 'diversity', 'score'. "
+                   "Custom dimensions: Must match metric names from evaluator. "
+                   "IMPORTANT: Evaluators must return raw continuous values for custom dimensions, "
+                   "NOT pre-computed bin indices. OpenEvolve handles all scaling and binning internally."
+        }
+    )
+    feature_bins: Union[int, Dict[str, int]] = 10  # Can be int (all dims) or dict (per-dim)
+    diversity_reference_size: int = 20  # Size of reference set for diversity calculation
 
     # Migration parameters for island-based evolution
     migration_interval: int = 50  # Migrate every N generations
     migration_rate: float = 0.1  # Fraction of population to migrate
 
     # Random seed for reproducible sampling
-    random_seed: Optional[int] = None
+    random_seed: Optional[int] = 42
 
     # Artifact storage
     artifacts_base_path: Optional[str] = None  # Defaults to db_path/artifacts
@@ -188,7 +238,7 @@ class EvaluatorConfig:
     cascade_thresholds: List[float] = field(default_factory=lambda: [0.5, 0.75, 0.9])
 
     # Parallel evaluation
-    parallel_evaluations: int = 4
+    parallel_evaluations: int = 1
     distributed: bool = False
 
     # LLM-based feedback
@@ -209,7 +259,8 @@ class Config:
     checkpoint_interval: int = 100
     log_level: str = "INFO"
     log_dir: Optional[str] = None
-    random_seed: Optional[int] = None
+    random_seed: Optional[int] = 42
+    language: str = None
 
     # Component configurations
     llm: LLMConfig = field(default_factory=LLMConfig)
@@ -219,8 +270,12 @@ class Config:
 
     # Evolution settings
     diff_based_evolution: bool = True
-    allow_full_rewrites: bool = False
     max_code_length: int = 10000
+    
+    # Early stopping settings
+    early_stopping_patience: Optional[int] = None
+    convergence_threshold: float = 0.001
+    early_stopping_metric: str = "combined_score"
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "Config":
@@ -254,6 +309,10 @@ class Config:
             config.prompt = PromptConfig(**config_dict["prompt"])
         if "database" in config_dict:
             config.database = DatabaseConfig(**config_dict["database"])
+
+        # Ensure database inherits the random seed if not explicitly set
+        if config.database.random_seed is None and config.random_seed is not None:
+            config.database.random_seed = config.random_seed
         if "evaluator" in config_dict:
             config.evaluator = EvaluatorConfig(**config_dict["evaluator"])
 
@@ -308,6 +367,7 @@ class Config:
                 "migration_interval": self.database.migration_interval,
                 "migration_rate": self.database.migration_rate,
                 "random_seed": self.database.random_seed,
+                "log_prompts": self.database.log_prompts,
             },
             "evaluator": {
                 "timeout": self.evaluator.timeout,
@@ -325,8 +385,11 @@ class Config:
             },
             # Evolution settings
             "diff_based_evolution": self.diff_based_evolution,
-            "allow_full_rewrites": self.allow_full_rewrites,
             "max_code_length": self.max_code_length,
+            # Early stopping settings
+            "early_stopping_patience": self.early_stopping_patience,
+            "convergence_threshold": self.convergence_threshold,
+            "early_stopping_metric": self.early_stopping_metric,
         }
 
     def to_yaml(self, path: Union[str, Path]) -> None:

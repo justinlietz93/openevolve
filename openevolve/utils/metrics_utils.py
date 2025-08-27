@@ -2,7 +2,7 @@
 Safe calculation utilities for metrics containing mixed types
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 
 def safe_numeric_average(metrics: Dict[str, Any]) -> float:
@@ -64,3 +64,86 @@ def safe_numeric_sum(metrics: Dict[str, Any]) -> float:
                 continue
 
     return numeric_sum
+
+
+def get_fitness_score(
+    metrics: Dict[str, Any], 
+    feature_dimensions: Optional[List[str]] = None
+) -> float:
+    """
+    Calculate fitness score, excluding MAP-Elites feature dimensions
+    
+    This ensures that MAP-Elites features don't pollute the fitness calculation
+    when combined_score is not available.
+    
+    Args:
+        metrics: All metrics from evaluation
+        feature_dimensions: List of MAP-Elites dimensions to exclude from fitness
+        
+    Returns:
+        Fitness score (combined_score if available, otherwise average of non-feature metrics)
+    """
+    if not metrics:
+        return 0.0
+    
+    # Always prefer combined_score if available
+    if "combined_score" in metrics:
+        try:
+            return float(metrics["combined_score"])
+        except (ValueError, TypeError):
+            pass
+    
+    # Otherwise, average only non-feature metrics
+    feature_dimensions = feature_dimensions or []
+    fitness_metrics = {}
+    
+    for key, value in metrics.items():
+        # Exclude MAP feature dimensions from fitness calculation
+        if key not in feature_dimensions:
+            if isinstance(value, (int, float)):
+                try:
+                    float_val = float(value)
+                    if not (float_val != float_val):  # Check for NaN
+                        fitness_metrics[key] = float_val
+                except (ValueError, TypeError, OverflowError):
+                    continue
+    
+    # If no non-feature metrics, fall back to all metrics (backward compatibility)
+    if not fitness_metrics:
+        return safe_numeric_average(metrics)
+    
+    return safe_numeric_average(fitness_metrics)
+
+
+def format_feature_coordinates(
+    metrics: Dict[str, Any], 
+    feature_dimensions: List[str]
+) -> str:
+    """
+    Format feature coordinates for display in prompts
+    
+    Args:
+        metrics: All metrics from evaluation
+        feature_dimensions: List of MAP-Elites feature dimensions
+        
+    Returns:
+        Formatted string showing feature coordinates
+    """
+    feature_values = []
+    for dim in feature_dimensions:
+        if dim in metrics:
+            value = metrics[dim]
+            if isinstance(value, (int, float)):
+                try:
+                    float_val = float(value)
+                    if not (float_val != float_val):  # Check for NaN
+                        feature_values.append(f"{dim}={float_val:.2f}")
+                except (ValueError, TypeError, OverflowError):
+                    feature_values.append(f"{dim}={value}")
+            else:
+                feature_values.append(f"{dim}={value}")
+    
+    if not feature_values:
+        return "No feature coordinates"
+    
+    return ", ".join(feature_values)

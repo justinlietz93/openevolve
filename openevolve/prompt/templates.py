@@ -3,8 +3,9 @@ Prompt templates for OpenEvolve
 """
 
 import os
+import json
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 
 # Base system message template for evolution
 BASE_SYSTEM_TEMPLATE = """You are an expert software developer tasked with iteratively improving a codebase.
@@ -96,6 +97,8 @@ EVOLUTION_HISTORY_TEMPLATE = """## Previous Attempts
 ## Top Performing Programs
 
 {top_programs}
+
+{inspirations_section}
 """
 
 # Template for formatting a previous attempt
@@ -111,6 +114,22 @@ TOP_PROGRAM_TEMPLATE = """### Program {program_number} (Score: {score})
 {program_snippet}
 ```
 Key features: {key_features}
+"""
+
+# Template for formatting inspirations section
+INSPIRATIONS_SECTION_TEMPLATE = """## Inspiration Programs
+
+These programs represent diverse approaches and creative solutions that may inspire new ideas:
+
+{inspiration_programs}
+"""
+
+# Template for formatting an individual inspiration program
+INSPIRATION_PROGRAM_TEMPLATE = """### Inspiration {program_number} (Score: {score}, Type: {program_type})
+```{language}
+{program_snippet}
+```
+Unique approach: {unique_features}
 """
 
 # Template for evaluating a program via an LLM
@@ -144,33 +163,68 @@ DEFAULT_TEMPLATES = {
     "evolution_history": EVOLUTION_HISTORY_TEMPLATE,
     "previous_attempt": PREVIOUS_ATTEMPT_TEMPLATE,
     "top_program": TOP_PROGRAM_TEMPLATE,
+    "inspirations_section": INSPIRATIONS_SECTION_TEMPLATE,
+    "inspiration_program": INSPIRATION_PROGRAM_TEMPLATE,
     "evaluation": EVALUATION_TEMPLATE,
 }
 
 
 class TemplateManager:
-    """Manages templates for prompt generation"""
+    """Manages templates with cascading override support"""
 
-    def __init__(self, template_dir: Optional[str] = None):
-        self.templates = DEFAULT_TEMPLATES.copy()
+    def __init__(self, custom_template_dir: Optional[str] = None):
+        # Get default template directory
+        self.default_dir = Path(__file__).parent.parent / "prompts" / "defaults"
+        self.custom_dir = Path(custom_template_dir) if custom_template_dir else None
+        
+        # Load templates with cascading priority
+        self.templates = {}
+        self.fragments = {}
+        
+        # 1. Load defaults
+        self._load_from_directory(self.default_dir)
+        
+        # 2. Override with custom templates (if provided)
+        if self.custom_dir and self.custom_dir.exists():
+            self._load_from_directory(self.custom_dir)
 
-        # Load templates from directory if provided
-        if template_dir and os.path.isdir(template_dir):
-            self._load_templates_from_dir(template_dir)
-
-    def _load_templates_from_dir(self, template_dir: str) -> None:
-        """Load templates from a directory"""
-        for file_path in Path(template_dir).glob("*.txt"):
-            template_name = file_path.stem
-            with open(file_path, "r") as f:
+    def _load_from_directory(self, directory: Path) -> None:
+        """Load all templates and fragments from a directory"""
+        if not directory.exists():
+            return
+            
+        # Load .txt templates
+        for txt_file in directory.glob("*.txt"):
+            template_name = txt_file.stem
+            with open(txt_file, 'r') as f:
                 self.templates[template_name] = f.read()
+        
+        # Load fragments.json if exists
+        fragments_file = directory / "fragments.json"
+        if fragments_file.exists():
+            with open(fragments_file, 'r') as f:
+                loaded_fragments = json.load(f)
+                self.fragments.update(loaded_fragments)
 
-    def get_template(self, template_name: str) -> str:
+    def get_template(self, name: str) -> str:
         """Get a template by name"""
-        if template_name not in self.templates:
-            raise ValueError(f"Template '{template_name}' not found")
-        return self.templates[template_name]
-
+        if name not in self.templates:
+            raise ValueError(f"Template '{name}' not found")
+        return self.templates[name]
+    
+    def get_fragment(self, name: str, **kwargs) -> str:
+        """Get and format a fragment"""
+        if name not in self.fragments:
+            return f"[Missing fragment: {name}]"
+        try:
+            return self.fragments[name].format(**kwargs)
+        except KeyError as e:
+            return f"[Fragment formatting error: {e}]"
+    
     def add_template(self, template_name: str, template: str) -> None:
         """Add or update a template"""
         self.templates[template_name] = template
+    
+    def add_fragment(self, fragment_name: str, fragment: str) -> None:
+        """Add or update a fragment"""
+        self.fragments[fragment_name] = fragment

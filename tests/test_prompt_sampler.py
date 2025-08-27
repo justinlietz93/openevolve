@@ -46,7 +46,8 @@ class TestPromptSampler(unittest.TestCase):
         self.assertIn("system", prompt)
         self.assertIn("user", prompt)
         self.assertIn("def test(): pass", prompt["user"])
-        self.assertIn("score: 0.5", prompt["user"])
+        # Check that the score value appears in the prompt (either as fitness or metrics)
+        self.assertIn("0.5", prompt["user"])
 
 
 if __name__ == "__main__":

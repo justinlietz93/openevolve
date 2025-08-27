@@ -5,24 +5,20 @@ Main controller for OpenEvolve
 import asyncio
 import logging
 import os
-import re
+import signal
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 from openevolve.config import Config, load_config
 from openevolve.database import Program, ProgramDatabase
 from openevolve.evaluator import Evaluator
 from openevolve.llm.ensemble import LLMEnsemble
 from openevolve.prompt.sampler import PromptSampler
+from openevolve.process_parallel import ProcessParallelController
 from openevolve.utils.code_utils import (
-    apply_diff,
     extract_code_language,
-    extract_diffs,
-    format_diff_summary,
-    parse_evolve_blocks,
-    parse_full_rewrite,
 )
 from openevolve.utils.format_utils import (
     format_metrics_safe,
@@ -30,6 +26,34 @@ from openevolve.utils.format_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _format_metrics(metrics: Dict[str, Any]) -> str:
+    """Safely format metrics, handling both numeric and string values"""
+    formatted_parts = []
+    for name, value in metrics.items():
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            try:
+                formatted_parts.append(f"{name}={value:.4f}")
+            except (ValueError, TypeError):
+                formatted_parts.append(f"{name}={value}")
+        else:
+            formatted_parts.append(f"{name}={value}")
+    return ", ".join(formatted_parts)
+
+
+def _format_improvement(improvement: Dict[str, Any]) -> str:
+    """Safely format improvement metrics"""
+    formatted_parts = []
+    for name, diff in improvement.items():
+        if isinstance(diff, (int, float)) and not isinstance(diff, bool):
+            try:
+                formatted_parts.append(f"{name}={diff:+.4f}")
+            except (ValueError, TypeError):
+                formatted_parts.append(f"{name}={diff}")
+        else:
+            formatted_parts.append(f"{name}={diff}")
+    return ", ".join(formatted_parts)
 
 
 class OpenEvolve:
@@ -75,15 +99,33 @@ class OpenEvolve:
         if self.config.random_seed is not None:
             import random
             import numpy as np
+            import hashlib
 
+            # Set global random seeds
             random.seed(self.config.random_seed)
             np.random.seed(self.config.random_seed)
+
+            # Create hash-based seeds for different components
+            base_seed = str(self.config.random_seed).encode("utf-8")
+            llm_seed = int(hashlib.md5(base_seed + b"llm").hexdigest()[:8], 16) % (2**31)
+
+            # Propagate seed to LLM configurations
+            self.config.llm.random_seed = llm_seed
+            for model_cfg in self.config.llm.models:
+                if not hasattr(model_cfg, "random_seed") or model_cfg.random_seed is None:
+                    model_cfg.random_seed = llm_seed
+            for model_cfg in self.config.llm.evaluator_models:
+                if not hasattr(model_cfg, "random_seed") or model_cfg.random_seed is None:
+                    model_cfg.random_seed = llm_seed
+
             logger.info(f"Set random seed to {self.config.random_seed} for reproducibility")
+            logger.debug(f"Generated LLM seed: {llm_seed}")
 
         # Load initial program
         self.initial_program_path = initial_program_path
         self.initial_program_code = self._load_initial_program()
-        self.language = extract_code_language(self.initial_program_code)
+        if not self.config.language:
+            self.config.language = extract_code_language(self.initial_program_code)
 
         # Extract file extension from initial program
         self.file_extension = os.path.splitext(initial_program_path)[1]
@@ -114,9 +156,15 @@ class OpenEvolve:
             evaluation_file,
             self.llm_evaluator_ensemble,
             self.evaluator_prompt_sampler,
+            database=self.database,
+            suffix=Path(self.initial_program_path).suffix,
         )
+        self.evaluation_file = evaluation_file
 
-        logger.info(f"Initialized OpenEvolve with {initial_program_path} " f"and {evaluation_file}")
+        logger.info(f"Initialized OpenEvolve with {initial_program_path}")
+
+        # Initialize improved parallel processing components
+        self.parallel_controller = None
 
     def _setup_logging(self) -> None:
         """Set up logging"""
@@ -151,24 +199,31 @@ class OpenEvolve:
         self,
         iterations: Optional[int] = None,
         target_score: Optional[float] = None,
-    ) -> Program:
+        checkpoint_path: Optional[str] = None,
+    ) -> Optional[Program]:
         """
-        Run the evolution process
+        Run the evolution process with improved parallel processing
 
         Args:
             iterations: Maximum number of iterations (uses config if None)
             target_score: Target score to reach (continues until reached if specified)
+            checkpoint_path: Path to resume from checkpoint
 
         Returns:
             Best program found
         """
         max_iterations = iterations or self.config.max_iterations
 
-        # Define start_iteration before creating the initial program
-        start_iteration = self.database.last_iteration
+        # Determine starting iteration
+        start_iteration = 0
+        if checkpoint_path and os.path.exists(checkpoint_path):
+            self._load_checkpoint(checkpoint_path)
+            start_iteration = self.database.last_iteration + 1
+            logger.info(f"Resuming from checkpoint at iteration {start_iteration}")
+        else:
+            start_iteration = self.database.last_iteration
 
         # Only add initial program if starting fresh (not resuming from checkpoint)
-        # Check if we're resuming AND no program matches initial code to avoid pollution
         should_add_initial = (
             start_iteration == 0
             and len(self.database.programs) == 0
@@ -189,179 +244,94 @@ class OpenEvolve:
             initial_program = Program(
                 id=initial_program_id,
                 code=self.initial_program_code,
-                language=self.language,
+                language=self.config.language,
                 metrics=initial_metrics,
                 iteration_found=start_iteration,
             )
 
             self.database.add(initial_program)
+
+            # Check if combined_score is present in the metrics
+            if "combined_score" not in initial_metrics:
+                # Calculate average of numeric metrics
+                numeric_metrics = [
+                    v
+                    for v in initial_metrics.values()
+                    if isinstance(v, (int, float)) and not isinstance(v, bool)
+                ]
+                if numeric_metrics:
+                    avg_score = sum(numeric_metrics) / len(numeric_metrics)
+                    logger.warning(
+                        f"⚠️  No 'combined_score' metric found in evaluation results. "
+                        f"Using average of all numeric metrics ({avg_score:.4f}) for evolution guidance. "
+                        f"For better evolution results, please modify your evaluator to return a 'combined_score' "
+                        f"metric that properly weights different aspects of program performance."
+                    )
         else:
             logger.info(
-                f"Skipping initial program addition (resuming from iteration {start_iteration} with {len(self.database.programs)} existing programs)"
+                f"Skipping initial program addition (resuming from iteration {start_iteration} "
+                f"with {len(self.database.programs)} existing programs)"
             )
 
-        # Main evolution loop
-        total_iterations = start_iteration + max_iterations
-
-        logger.info(
-            f"Starting evolution from iteration {start_iteration} for {max_iterations} iterations (total: {total_iterations})"
-        )
-
-        # Island-based evolution variables
-        programs_per_island = max(
-            1, max_iterations // (self.config.database.num_islands * 10)
-        )  # Dynamic allocation
-        current_island_counter = 0
-
-        logger.info(f"Using island-based evolution with {self.config.database.num_islands} islands")
-        self.database.log_island_status()
-
-        for i in range(start_iteration, total_iterations):
-            iteration_start = time.time()
-
-            # Manage island evolution - switch islands periodically
-            if i > start_iteration and current_island_counter >= programs_per_island:
-                self.database.next_island()
-                current_island_counter = 0
-                logger.debug(f"Switched to island {self.database.current_island}")
-
-            current_island_counter += 1
-
-            # Sample parent and inspirations from current island
-            parent, inspirations = self.database.sample()
-
-            # Get artifacts for the parent program if available
-            parent_artifacts = self.database.get_artifacts(parent.id)
-
-            # Build prompt
-            prompt = self.prompt_sampler.build_prompt(
-                current_program=parent.code,
-                parent_program=parent.code,  # We don't have the parent's code, use the same
-                program_metrics=parent.metrics,
-                previous_programs=[p.to_dict() for p in self.database.get_top_programs(3)],
-                top_programs=[p.to_dict() for p in inspirations],
-                language=self.language,
-                evolution_round=i,
-                allow_full_rewrite=self.config.allow_full_rewrites,
-                program_artifacts=parent_artifacts if parent_artifacts else None,
+        # Initialize improved parallel processing
+        try:
+            self.parallel_controller = ProcessParallelController(
+                self.config, self.evaluation_file, self.database
             )
 
-            # Generate code modification
-            try:
-                llm_response = await self.llm_ensemble.generate_with_context(
-                    system_message=prompt["system"],
-                    messages=[{"role": "user", "content": prompt["user"]}],
-                )
+            # Set up signal handlers for graceful shutdown
+            def signal_handler(signum, frame):
+                logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+                self.parallel_controller.request_shutdown()
 
-                # Parse the response
-                if self.config.diff_based_evolution:
-                    diff_blocks = extract_diffs(llm_response)
+                # Set up a secondary handler for immediate exit if user presses Ctrl+C again
+                def force_exit_handler(signum, frame):
+                    logger.info("Force exit requested - terminating immediately")
+                    import sys
 
-                    if not diff_blocks:
-                        logger.warning(f"Iteration {i+1}: No valid diffs found in response")
-                        continue
+                    sys.exit(0)
 
-                    # Apply the diffs
-                    child_code = apply_diff(parent.code, llm_response)
-                    changes_summary = format_diff_summary(diff_blocks)
-                else:
-                    # Parse full rewrite
-                    new_code = parse_full_rewrite(llm_response, self.language)
+                signal.signal(signal.SIGINT, force_exit_handler)
 
-                    if not new_code:
-                        logger.warning(f"Iteration {i+1}: No valid code found in response")
-                        continue
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
 
-                    child_code = new_code
-                    changes_summary = "Full rewrite"
+            self.parallel_controller.start()
 
-                # Check code length
-                if len(child_code) > self.config.max_code_length:
-                    logger.warning(
-                        f"Iteration {i+1}: Generated code exceeds maximum length "
-                        f"({len(child_code)} > {self.config.max_code_length})"
-                    )
-                    continue
+            # When starting from iteration 0, we've already done the initial program evaluation
+            # So we need to adjust the start_iteration for the actual evolution
+            evolution_start = start_iteration
+            evolution_iterations = max_iterations
 
-                # Evaluate the child program
-                child_id = str(uuid.uuid4())
-                child_metrics = await self.evaluator.evaluate_program(child_code, child_id)
+            # If we just added the initial program at iteration 0, start evolution from iteration 1
+            if should_add_initial and start_iteration == 0:
+                evolution_start = 1
+                # User expects max_iterations evolutionary iterations AFTER the initial program
+                # So we don't need to reduce evolution_iterations
 
-                # Handle artifacts if they exist
-                artifacts = self.evaluator.get_pending_artifacts(child_id)
+            # Run evolution with improved parallel processing and checkpoint callback
+            await self._run_evolution_with_checkpoints(
+                evolution_start, evolution_iterations, target_score
+            )
 
-                # Create a child program
-                child_program = Program(
-                    id=child_id,
-                    code=child_code,
-                    language=self.language,
-                    parent_id=parent.id,
-                    generation=parent.generation + 1,
-                    metrics=child_metrics,
-                    metadata={
-                        "changes": changes_summary,
-                        "parent_metrics": parent.metrics,
-                    },
-                )
+        finally:
+            # Clean up parallel processing resources
+            if self.parallel_controller:
+                self.parallel_controller.stop()
+                self.parallel_controller = None
 
-                # Add to database (will be added to current island)
-                self.database.add(child_program, iteration=i + 1)
-
-                # Store artifacts if they exist
-                if artifacts:
-                    self.database.store_artifacts(child_id, artifacts)
-
-                # Increment generation for current island
-                self.database.increment_island_generation()
-
-                # Check if migration should occur
-                if self.database.should_migrate():
-                    logger.info(f"Performing migration at iteration {i+1}")
-                    self.database.migrate_programs()
-                    self.database.log_island_status()
-
-                # Log progress
-                iteration_time = time.time() - iteration_start
-                self._log_iteration(i, parent, child_program, iteration_time)
-
-                # Specifically check if this is the new best program
-                if self.database.best_program_id == child_program.id:
-                    logger.info(
-                        f"🌟 New best solution found at iteration {i+1}: {child_program.id}"
-                    )
-                    logger.info(f"Metrics: {format_metrics_safe(child_program.metrics)}")
-
-                # Save checkpoint
-                if (i + 1) % self.config.checkpoint_interval == 0:
-                    self._save_checkpoint(i + 1)
-                    # Also log island status at checkpoints
-                    logger.info(f"Island status at checkpoint {i+1}:")
-                    self.database.log_island_status()
-
-                # Check if target score reached
-                if target_score is not None:
-                    avg_score = sum(child_metrics.values()) / max(1, len(child_metrics))
-                    if avg_score >= target_score:
-                        logger.info(f"Target score {target_score} reached after {i+1} iterations")
-                        break
-
-            except Exception as e:
-                logger.error(f"Error in iteration {i+1}: {str(e)}")
-                continue
-
-        # Get the best program using our tracking mechanism
+        # Get the best program
         best_program = None
         if self.database.best_program_id:
             best_program = self.database.get(self.database.best_program_id)
             logger.info(f"Using tracked best program: {self.database.best_program_id}")
 
-        # Fallback to calculating best program if tracked program not found
         if best_program is None:
             best_program = self.database.get_best_program()
             logger.info("Using calculated best program (tracked program not found)")
 
         # Check if there's a better program by combined_score that wasn't tracked
-        if "combined_score" in best_program.metrics:
+        if best_program and "combined_score" in best_program.metrics:
             best_by_combined = self.database.get_best_program(metric="combined_score")
             if (
                 best_by_combined
@@ -377,7 +347,8 @@ class OpenEvolve:
                         f"Found program with better combined_score: {best_by_combined.id}"
                     )
                     logger.warning(
-                        f"Score difference: {best_program.metrics['combined_score']:.4f} vs {best_by_combined.metrics['combined_score']:.4f}"
+                        f"Score difference: {best_program.metrics['combined_score']:.4f} vs "
+                        f"{best_by_combined.metrics['combined_score']:.4f}"
                     )
                     best_program = best_by_combined
 
@@ -386,14 +357,10 @@ class OpenEvolve:
                 f"Evolution complete. Best program has metrics: "
                 f"{format_metrics_safe(best_program.metrics)}"
             )
-
-            # Save the best program (using our tracked best program)
-            self._save_best_program()
-
+            self._save_best_program(best_program)
             return best_program
         else:
             logger.warning("No valid programs found during evolution")
-            # Return None if no programs found instead of undefined initial_program
             return None
 
     def _log_iteration(
@@ -478,6 +445,39 @@ class OpenEvolve:
             )
 
         logger.info(f"Saved checkpoint at iteration {iteration} to {checkpoint_path}")
+
+    def _load_checkpoint(self, checkpoint_path: str) -> None:
+        """Load state from a checkpoint directory"""
+        if not os.path.exists(checkpoint_path):
+            raise FileNotFoundError(f"Checkpoint directory {checkpoint_path} not found")
+
+        logger.info(f"Loading checkpoint from {checkpoint_path}")
+        self.database.load(checkpoint_path)
+        logger.info(f"Checkpoint loaded successfully (iteration {self.database.last_iteration})")
+
+    async def _run_evolution_with_checkpoints(
+        self, start_iteration: int, max_iterations: int, target_score: Optional[float]
+    ) -> None:
+        """Run evolution with checkpoint saving support"""
+        logger.info(f"Using island-based evolution with {self.config.database.num_islands} islands")
+        self.database.log_island_status()
+
+        # Run the evolution process with checkpoint callback
+        await self.parallel_controller.run_evolution(
+            start_iteration, max_iterations, target_score, checkpoint_callback=self._save_checkpoint
+        )
+
+        # Check if shutdown was requested
+        if self.parallel_controller.shutdown_event.is_set():
+            logger.info("Evolution stopped due to shutdown request")
+            return
+
+        # Save final checkpoint if needed
+        # Note: start_iteration here is the evolution start (1 for fresh start, not 0)
+        # max_iterations is the number of evolution iterations to run
+        final_iteration = start_iteration + max_iterations - 1
+        if final_iteration > 0 and final_iteration % self.config.checkpoint_interval == 0:
+            self._save_checkpoint(final_iteration)
 
     def _save_best_program(self, program: Optional[Program] = None) -> None:
         """
