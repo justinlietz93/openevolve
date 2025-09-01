@@ -67,36 +67,35 @@ def safe_numeric_sum(metrics: Dict[str, Any]) -> float:
 
 
 def get_fitness_score(
-    metrics: Dict[str, Any], 
-    feature_dimensions: Optional[List[str]] = None
+    metrics: Dict[str, Any], feature_dimensions: Optional[List[str]] = None
 ) -> float:
     """
     Calculate fitness score, excluding MAP-Elites feature dimensions
-    
+
     This ensures that MAP-Elites features don't pollute the fitness calculation
     when combined_score is not available.
-    
+
     Args:
         metrics: All metrics from evaluation
         feature_dimensions: List of MAP-Elites dimensions to exclude from fitness
-        
+
     Returns:
         Fitness score (combined_score if available, otherwise average of non-feature metrics)
     """
     if not metrics:
         return 0.0
-    
+
     # Always prefer combined_score if available
     if "combined_score" in metrics:
         try:
             return float(metrics["combined_score"])
         except (ValueError, TypeError):
             pass
-    
+
     # Otherwise, average only non-feature metrics
     feature_dimensions = feature_dimensions or []
     fitness_metrics = {}
-    
+
     for key, value in metrics.items():
         # Exclude MAP feature dimensions from fitness calculation
         if key not in feature_dimensions:
@@ -107,25 +106,22 @@ def get_fitness_score(
                         fitness_metrics[key] = float_val
                 except (ValueError, TypeError, OverflowError):
                     continue
-    
+
     # If no non-feature metrics, fall back to all metrics (backward compatibility)
     if not fitness_metrics:
         return safe_numeric_average(metrics)
-    
+
     return safe_numeric_average(fitness_metrics)
 
 
-def format_feature_coordinates(
-    metrics: Dict[str, Any], 
-    feature_dimensions: List[str]
-) -> str:
+def format_feature_coordinates(metrics: Dict[str, Any], feature_dimensions: List[str]) -> str:
     """
     Format feature coordinates for display in prompts
-    
+
     Args:
         metrics: All metrics from evaluation
         feature_dimensions: List of MAP-Elites feature dimensions
-        
+
     Returns:
         Formatted string showing feature coordinates
     """
@@ -142,8 +138,8 @@ def format_feature_coordinates(
                     feature_values.append(f"{dim}={value}")
             else:
                 feature_values.append(f"{dim}={value}")
-    
+
     if not feature_values:
         return "No feature coordinates"
-    
+
     return ", ".join(feature_values)

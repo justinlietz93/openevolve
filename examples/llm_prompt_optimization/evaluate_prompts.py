@@ -82,9 +82,9 @@ def evaluate_ifeval(client, prompt_template, num_samples, model):
 
         try:
             formatted_prompt = prompt_template.format(instruction=instruction)
-        except KeyError:
-            # Handle prompts with different placeholder names
-            formatted_prompt = prompt_template.replace("{instruction}", instruction)
+        except KeyError as e:
+            print(f"Error: Prompt template missing placeholder: {e}")
+            return 0.0, 0, total, total
 
         # Call LLM with retries
         output_text = None
@@ -163,8 +163,9 @@ def evaluate_hover(client, prompt_template, num_samples, model):
 
         try:
             formatted_prompt = prompt_template.format(claim=claim)
-        except KeyError:
-            formatted_prompt = prompt_template.replace("{claim}", claim)
+        except KeyError as e:
+            print(f"Error: Prompt template missing placeholder: {e}")
+            return 0.0, 0, total, total
 
         # Call LLM with retries
         output_text = None
@@ -258,10 +259,9 @@ def evaluate_hotpotqa(client, prompt_template, num_samples, model):
             formatted_prompt = prompt_template.format(
                 context=context_str.strip(), question=question
             )
-        except KeyError:
-            # Try alternative formatting
-            formatted_prompt = prompt_template.replace("{context}", context_str.strip())
-            formatted_prompt = formatted_prompt.replace("{question}", question)
+        except KeyError as e:
+            print(f"Error: Prompt template missing placeholders: {e}")
+            return 0.0, 0, total, total
 
         # Call LLM with retries
         output_text = None

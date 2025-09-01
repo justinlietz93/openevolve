@@ -44,7 +44,7 @@ class Evaluator:
         llm_ensemble: Optional[LLMEnsemble] = None,
         prompt_sampler: Optional[PromptSampler] = None,
         database: Optional[ProgramDatabase] = None,
-        suffix: Optional[str]=".py",
+        suffix: Optional[str] = ".py",
     ):
         self.config = config
         self.evaluation_file = evaluation_file
@@ -565,7 +565,9 @@ class Evaluator:
             # Create prompt for LLM
             feature_dimensions = self.database.config.feature_dimensions if self.database else []
             prompt = self.prompt_sampler.build_prompt(
-                current_program=program_code, template_key="evaluation", feature_dimensions=feature_dimensions
+                current_program=program_code,
+                template_key="evaluation",
+                feature_dimensions=feature_dimensions,
             )
 
             # Get LLM response

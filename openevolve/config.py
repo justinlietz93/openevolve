@@ -73,8 +73,7 @@ class LLMConfig(LLMModelConfig):
         if self.primary_model:
             # Create primary model
             primary_model = LLMModelConfig(
-                name=self.primary_model,
-                weight=self.primary_model_weight or 1.0
+                name=self.primary_model, weight=self.primary_model_weight or 1.0
             )
             self.models.append(primary_model)
 
@@ -83,14 +82,22 @@ class LLMConfig(LLMModelConfig):
             if self.secondary_model_weight is None or self.secondary_model_weight > 0:
                 secondary_model = LLMModelConfig(
                     name=self.secondary_model,
-                    weight=self.secondary_model_weight if self.secondary_model_weight is not None else 0.2
+                    weight=(
+                        self.secondary_model_weight
+                        if self.secondary_model_weight is not None
+                        else 0.2
+                    ),
                 )
                 self.models.append(secondary_model)
 
         # Only validate if this looks like a user config (has some model info)
         # Don't validate during internal/default initialization
-        if (self.primary_model or self.secondary_model or 
-            self.primary_model_weight or self.secondary_model_weight) and not self.models:
+        if (
+            self.primary_model
+            or self.secondary_model
+            or self.primary_model_weight
+            or self.secondary_model_weight
+        ) and not self.models:
             raise ValueError(
                 "No LLM models configured. Please specify 'models' array or "
                 "'primary_model' in your configuration."
@@ -198,11 +205,11 @@ class DatabaseConfig:
         default_factory=lambda: ["complexity", "diversity"],
         metadata={
             "help": "List of feature dimensions for MAP-Elites grid. "
-                   "Built-in dimensions: 'complexity', 'diversity', 'score'. "
-                   "Custom dimensions: Must match metric names from evaluator. "
-                   "IMPORTANT: Evaluators must return raw continuous values for custom dimensions, "
-                   "NOT pre-computed bin indices. OpenEvolve handles all scaling and binning internally."
-        }
+            "Built-in dimensions: 'complexity', 'diversity', 'score'. "
+            "Custom dimensions: Must match metric names from evaluator. "
+            "IMPORTANT: Evaluators must return raw continuous values for custom dimensions, "
+            "NOT pre-computed bin indices. OpenEvolve handles all scaling and binning internally."
+        },
     )
     feature_bins: Union[int, Dict[str, int]] = 10  # Can be int (all dims) or dict (per-dim)
     diversity_reference_size: int = 20  # Size of reference set for diversity calculation
@@ -271,7 +278,7 @@ class Config:
     # Evolution settings
     diff_based_evolution: bool = True
     max_code_length: int = 10000
-    
+
     # Early stopping settings
     early_stopping_patience: Optional[int] = None
     convergence_threshold: float = 0.001

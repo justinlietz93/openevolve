@@ -28,9 +28,9 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
             "accuracy": 0.9,
             "speed": 0.8,
             "complexity": 5,
-            "memory_usage": 100
+            "memory_usage": 100,
         }
-        
+
         # Create inspirations with diverse characteristics
         inspirations = [
             {
@@ -41,9 +41,9 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
                     "accuracy": 0.7,
                     "speed": 0.95,
                     "complexity": 3,
-                    "memory_usage": 50
+                    "memory_usage": 50,
                 },
-                "metadata": {"diverse": True}
+                "metadata": {"diverse": True},
             },
             {
                 "id": "insp2",
@@ -53,10 +53,10 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
                     "accuracy": 0.8,
                     "speed": 0.5,
                     "complexity": 7,
-                    "memory_usage": 20
+                    "memory_usage": 20,
                 },
-                "metadata": {"migrant": True}
-            }
+                "metadata": {"migrant": True},
+            },
         ]
 
         # Build prompt with inspirations and feature_dimensions
@@ -65,17 +65,17 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
             parent_program=parent_program,
             program_metrics=program_metrics,
             inspirations=inspirations,
-            feature_dimensions=self.feature_dimensions
+            feature_dimensions=self.feature_dimensions,
         )
 
         # Verify prompt was built successfully
         self.assertIn("system", prompt)
         self.assertIn("user", prompt)
-        
+
         # Check that inspirations are included
         self.assertIn("fast_implementation", prompt["user"])
         self.assertIn("memory_efficient", prompt["user"])
-        
+
         # Verify fitness scores are calculated correctly (excluding feature dimensions)
         # The inspirations should show their fitness scores, not including complexity/memory_usage
         self.assertIn("0.75", prompt["user"])  # insp1's combined_score
@@ -91,19 +91,17 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
                     "combined_score": 0.9,
                     "accuracy": 0.95,
                     "complexity": 10,  # Feature dimension
-                    "memory_usage": 200  # Feature dimension
+                    "memory_usage": 200,  # Feature dimension
                 },
-                "metadata": {"diverse": True}
+                "metadata": {"diverse": True},
             }
         ]
-        
+
         # Call the method directly
         result = self.prompt_sampler._format_inspirations_section(
-            inspirations, 
-            "python",
-            feature_dimensions=["complexity", "memory_usage"]
+            inspirations, "python", feature_dimensions=["complexity", "memory_usage"]
         )
-        
+
         # Should not raise NameError
         self.assertIsInstance(result, str)
         self.assertIn("test_func", result)
@@ -116,36 +114,28 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
                 "id": "test2",
                 "code": "def another_func(): pass",
                 "metrics": {"score": 0.7, "time": 1.2},
-                "metadata": {}
+                "metadata": {},
             }
         ]
-        
+
         # Call without feature_dimensions (should use default of None)
-        result = self.prompt_sampler._format_inspirations_section(
-            inspirations, 
-            "python"
-        )
-        
+        result = self.prompt_sampler._format_inspirations_section(inspirations, "python")
+
         self.assertIsInstance(result, str)
         self.assertIn("another_func", result)
 
     def test_determine_program_type_with_feature_dimensions(self):
         """Test _determine_program_type with feature_dimensions parameter"""
         program = {
-            "metrics": {
-                "combined_score": 0.85,
-                "complexity": 5,
-                "memory_usage": 100
-            },
-            "metadata": {}
+            "metrics": {"combined_score": 0.85, "complexity": 5, "memory_usage": 100},
+            "metadata": {},
         }
-        
+
         # Test with feature_dimensions
         program_type = self.prompt_sampler._determine_program_type(
-            program, 
-            feature_dimensions=["complexity", "memory_usage"]
+            program, feature_dimensions=["complexity", "memory_usage"]
         )
-        
+
         self.assertEqual(program_type, "High-Performer")  # Based on combined_score of 0.85
 
     def test_extract_unique_features_calls_determine_program_type(self):
@@ -153,30 +143,26 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
         program = {
             "code": "",  # Empty code to trigger default features
             "metrics": {"score": 0.5},
-            "metadata": {}
+            "metadata": {},
         }
-        
+
         # This should not raise NameError when calling _determine_program_type
         features = self.prompt_sampler._extract_unique_features(program)
-        
+
         self.assertIsInstance(features, str)
         self.assertIn("approach to the problem", features)
 
     def test_build_prompt_with_all_optional_parameters(self):
         """Test build_prompt with all optional parameters including inspirations"""
         current_program = "def main(): pass"
-        
+
         # Comprehensive test data
-        previous_programs = [
-            {"id": "prev1", "code": "def v1(): pass", "metrics": {"score": 0.3}}
-        ]
+        previous_programs = [{"id": "prev1", "code": "def v1(): pass", "metrics": {"score": 0.3}}]
         top_programs = [
             {"id": "top1", "code": "def best(): pass", "metrics": {"combined_score": 0.95}}
         ]
-        inspirations = [
-            {"id": "insp1", "code": "def creative(): pass", "metrics": {"score": 0.6}}
-        ]
-        
+        inspirations = [{"id": "insp1", "code": "def creative(): pass", "metrics": {"score": 0.6}}]
+
         prompt = self.prompt_sampler.build_prompt(
             current_program=current_program,
             parent_program="def parent(): pass",
@@ -188,9 +174,9 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
             evolution_round=5,
             diff_based_evolution=True,
             feature_dimensions=["feature1"],
-            program_artifacts={"output": "test output"}
+            program_artifacts={"output": "test output"},
         )
-        
+
         self.assertIn("system", prompt)
         self.assertIn("user", prompt)
         # Verify all components are included
@@ -205,20 +191,18 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
             "accuracy": 0.9,
             "speed": 0.7,
             "complexity": 5,  # Feature dimension
-            "memory_usage": 100  # Feature dimension
+            "memory_usage": 100,  # Feature dimension
         }
         feature_dimensions = ["complexity", "memory_usage"]
-        
+
         # Build a prompt with these metrics
         prompt = self.prompt_sampler.build_prompt(
             current_program="def test(): pass",
             program_metrics=metrics,
-            inspirations=[
-                {"id": "i1", "code": "pass", "metrics": metrics}
-            ],
-            feature_dimensions=feature_dimensions
+            inspirations=[{"id": "i1", "code": "pass", "metrics": metrics}],
+            feature_dimensions=feature_dimensions,
         )
-        
+
         # The fitness score should be 0.8 (combined_score), not an average including features
         self.assertIn("0.8000", prompt["user"])  # Fitness score in prompt
 
@@ -227,9 +211,9 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
         prompt = self.prompt_sampler.build_prompt(
             current_program="def empty(): pass",
             inspirations=[],  # Empty list
-            feature_dimensions=["test_feature"]
+            feature_dimensions=["test_feature"],
         )
-        
+
         self.assertIn("system", prompt)
         self.assertIn("user", prompt)
         # Should complete without errors
@@ -246,46 +230,39 @@ class TestPromptSamplerComprehensive(unittest.TestCase):
                 "id": "bad2",
                 "code": "def worse(): pass",
                 # No metrics key at all
-            }
+            },
         ]
-        
+
         # Should handle gracefully without errors
         result = self.prompt_sampler._format_inspirations_section(
-            inspirations,
-            "python",
-            feature_dimensions=["test"]
+            inspirations, "python", feature_dimensions=["test"]
         )
-        
+
         self.assertIsInstance(result, str)
 
     def test_feature_dimensions_none_vs_empty_list(self):
         """Test that None and empty list for feature_dimensions are handled correctly"""
         program = {"metrics": {"score": 0.5}}
-        
+
         # Test with None
         type_none = self.prompt_sampler._determine_program_type(program, None)
-        
+
         # Test with empty list
         type_empty = self.prompt_sampler._determine_program_type(program, [])
-        
+
         # Both should work and give same result
         self.assertEqual(type_none, type_empty)
 
     def test_feature_coordinates_formatting_in_prompt(self):
         """Test that feature coordinates are formatted correctly in the prompt"""
-        metrics = {
-            "combined_score": 0.75,
-            "complexity": 8,
-            "memory_usage": 150,
-            "cpu_usage": 0.3
-        }
-        
+        metrics = {"combined_score": 0.75, "complexity": 8, "memory_usage": 150, "cpu_usage": 0.3}
+
         prompt = self.prompt_sampler.build_prompt(
             current_program="def test(): pass",
             program_metrics=metrics,
-            feature_dimensions=["complexity", "memory_usage", "cpu_usage"]
+            feature_dimensions=["complexity", "memory_usage", "cpu_usage"],
         )
-        
+
         # Check that feature coordinates are included
         user_msg = prompt["user"]
         self.assertIn("complexity", user_msg)

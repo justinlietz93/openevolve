@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 import time
+from concurrent.futures import Future
 
 # Set dummy API key for testing
 os.environ["OPENAI_API_KEY"] = "test"
@@ -111,7 +112,7 @@ def evaluate(program_path):
             # Mock the executor to avoid actually spawning processes
             with patch.object(controller, "_submit_iteration") as mock_submit:
                 # Create mock futures that complete immediately
-                mock_future1 = asyncio.Future()
+                mock_future1 = MagicMock()
                 mock_result1 = SerializableResult(
                     child_program_dict={
                         "id": "child_1",
@@ -127,7 +128,9 @@ def evaluate(program_path):
                     iteration_time=0.1,
                     iteration=1,
                 )
-                mock_future1.set_result(mock_result1)
+                mock_future1.done.return_value = True
+                mock_future1.result.return_value = mock_result1
+                mock_future1.cancel.return_value = True
 
                 mock_submit.return_value = mock_future1
 

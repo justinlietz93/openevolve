@@ -5,9 +5,8 @@
 This report documents a comprehensive optimization journey using OpenEvolve on the AlgoTune benchmark suite. Through systematic experimentation with model configurations, prompt engineering, and evolutionary parameters, we achieved significant performance improvements across 8 algorithmic tasks.
 
 **Final Results:**
-- **Best AlgoTune Score: 1.984x** (harmonic mean across 7 successful tasks)
+- **Best AlgoTune Score: 1.984x** (harmonic mean across 8 successful tasks)
 - **Major Breakthroughs:** JAX optimization discovery (321x speedup), FFT convolution (256x), parameter optimization (3.2x)
-- **Success Rate:** 7/8 tasks completed successfully
 - **Total Evolution Time:** ~200 minutes for full benchmark
 
 ## The Optimization Journey

@@ -9,7 +9,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from openevolve.config import PromptConfig
 from openevolve.prompt.templates import TemplateManager
 from openevolve.utils.format_utils import format_metrics_safe
-from openevolve.utils.metrics_utils import safe_numeric_average, get_fitness_score, format_feature_coordinates
+from openevolve.utils.metrics_utils import (
+    safe_numeric_average,
+    get_fitness_score,
+    format_feature_coordinates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +136,7 @@ class PromptSampler:
         feature_dimensions = feature_dimensions or []
         fitness_score = get_fitness_score(program_metrics, feature_dimensions)
         feature_coords = format_feature_coordinates(program_metrics, feature_dimensions)
-        
+
         # Format the final user message
         user_message = user_template.format(
             metrics=metrics_str,
@@ -175,66 +179,53 @@ class PromptSampler:
         feature_dimensions: Optional[List[str]] = None,
     ) -> str:
         """Identify improvement areas with proper fitness/feature separation"""
-        
+
         improvement_areas = []
         feature_dimensions = feature_dimensions or []
-        
+
         # Calculate fitness (excluding feature dimensions)
         current_fitness = get_fitness_score(metrics, feature_dimensions)
-        
+
         # Track fitness changes (not individual metrics)
         if previous_programs:
             prev_metrics = previous_programs[-1].get("metrics", {})
             prev_fitness = get_fitness_score(prev_metrics, feature_dimensions)
-            
+
             if current_fitness > prev_fitness:
                 msg = self.template_manager.get_fragment(
-                    "fitness_improved",
-                    prev=prev_fitness,
-                    current=current_fitness
+                    "fitness_improved", prev=prev_fitness, current=current_fitness
                 )
                 improvement_areas.append(msg)
             elif current_fitness < prev_fitness:
                 msg = self.template_manager.get_fragment(
-                    "fitness_declined", 
-                    prev=prev_fitness,
-                    current=current_fitness
+                    "fitness_declined", prev=prev_fitness, current=current_fitness
                 )
                 improvement_areas.append(msg)
             elif abs(current_fitness - prev_fitness) < 1e-6:  # Essentially unchanged
-                msg = self.template_manager.get_fragment(
-                    "fitness_stable",
-                    current=current_fitness
-                )
+                msg = self.template_manager.get_fragment("fitness_stable", current=current_fitness)
                 improvement_areas.append(msg)
-        
+
         # Note feature exploration (not good/bad, just informational)
         if feature_dimensions:
             feature_coords = format_feature_coordinates(metrics, feature_dimensions)
             if feature_coords != "No feature coordinates":
                 msg = self.template_manager.get_fragment(
-                    "exploring_region",
-                    features=feature_coords
+                    "exploring_region", features=feature_coords
                 )
                 improvement_areas.append(msg)
-        
+
         # Code length check (configurable threshold)
         threshold = (
             self.config.suggest_simplification_after_chars or self.config.code_length_threshold
         )
         if threshold and len(current_program) > threshold:
-            msg = self.template_manager.get_fragment(
-                "code_too_long",
-                threshold=threshold
-            )
+            msg = self.template_manager.get_fragment("code_too_long", threshold=threshold)
             improvement_areas.append(msg)
-        
+
         # Default guidance if nothing specific
         if not improvement_areas:
-            improvement_areas.append(
-                self.template_manager.get_fragment("no_specific_guidance")
-            )
-        
+            improvement_areas.append(self.template_manager.get_fragment("no_specific_guidance"))
+
         return "\n".join(f"- {area}" for area in improvement_areas)
 
     def _format_evolution_history(
@@ -402,7 +393,9 @@ class PromptSampler:
         combined_programs_str = top_programs_str + diverse_programs_str
 
         # Format inspirations section
-        inspirations_section_str = self._format_inspirations_section(inspirations, language, feature_dimensions)
+        inspirations_section_str = self._format_inspirations_section(
+            inspirations, language, feature_dimensions
+        )
 
         # Combine into full history
         return history_template.format(
@@ -412,7 +405,10 @@ class PromptSampler:
         )
 
     def _format_inspirations_section(
-        self, inspirations: List[Dict[str, Any]], language: str, feature_dimensions: Optional[List[str]] = None
+        self,
+        inspirations: List[Dict[str, Any]],
+        language: str,
+        feature_dimensions: Optional[List[str]] = None,
     ) -> str:
         """
         Format the inspirations section for the prompt
@@ -462,7 +458,9 @@ class PromptSampler:
             inspiration_programs=inspiration_programs_str.strip()
         )
 
-    def _determine_program_type(self, program: Dict[str, Any], feature_dimensions: Optional[List[str]] = None) -> str:
+    def _determine_program_type(
+        self, program: Dict[str, Any], feature_dimensions: Optional[List[str]] = None
+    ) -> str:
         """
         Determine the type/category of an inspiration program
 

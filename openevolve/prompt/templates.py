@@ -176,14 +176,14 @@ class TemplateManager:
         # Get default template directory
         self.default_dir = Path(__file__).parent.parent / "prompts" / "defaults"
         self.custom_dir = Path(custom_template_dir) if custom_template_dir else None
-        
+
         # Load templates with cascading priority
         self.templates = {}
         self.fragments = {}
-        
+
         # 1. Load defaults
         self._load_from_directory(self.default_dir)
-        
+
         # 2. Override with custom templates (if provided)
         if self.custom_dir and self.custom_dir.exists():
             self._load_from_directory(self.custom_dir)
@@ -192,17 +192,17 @@ class TemplateManager:
         """Load all templates and fragments from a directory"""
         if not directory.exists():
             return
-            
+
         # Load .txt templates
         for txt_file in directory.glob("*.txt"):
             template_name = txt_file.stem
-            with open(txt_file, 'r') as f:
+            with open(txt_file, "r") as f:
                 self.templates[template_name] = f.read()
-        
+
         # Load fragments.json if exists
         fragments_file = directory / "fragments.json"
         if fragments_file.exists():
-            with open(fragments_file, 'r') as f:
+            with open(fragments_file, "r") as f:
                 loaded_fragments = json.load(f)
                 self.fragments.update(loaded_fragments)
 
@@ -211,7 +211,7 @@ class TemplateManager:
         if name not in self.templates:
             raise ValueError(f"Template '{name}' not found")
         return self.templates[name]
-    
+
     def get_fragment(self, name: str, **kwargs) -> str:
         """Get and format a fragment"""
         if name not in self.fragments:
@@ -220,11 +220,11 @@ class TemplateManager:
             return self.fragments[name].format(**kwargs)
         except KeyError as e:
             return f"[Fragment formatting error: {e}]"
-    
+
     def add_template(self, template_name: str, template: str) -> None:
         """Add or update a template"""
         self.templates[template_name] = template
-    
+
     def add_fragment(self, fragment_name: str, fragment: str) -> None:
         """Add or update a fragment"""
         self.fragments[fragment_name] = fragment

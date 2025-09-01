@@ -248,7 +248,9 @@ class ProgramDatabase:
                 if existing_program_id in self.programs:
                     existing_program = self.programs[existing_program_id]
                     new_fitness = get_fitness_score(program.metrics, self.config.feature_dimensions)
-                    existing_fitness = get_fitness_score(existing_program.metrics, self.config.feature_dimensions)
+                    existing_fitness = get_fitness_score(
+                        existing_program.metrics, self.config.feature_dimensions
+                    )
                     logger.info(
                         "MAP-Elites cell improved: %s (fitness: %.3f -> %.3f)",
                         coords_dict,
@@ -290,7 +292,7 @@ class ProgramDatabase:
         else:
             # No parent and no target specified, use current island
             island_idx = self.current_island
-        
+
         island_idx = island_idx % len(self.islands)  # Ensure valid island
         self.islands[island_idx].add(program.id)
 
@@ -547,7 +549,7 @@ class ProgramDatabase:
             self.current_island = metadata.get("current_island", 0)
             self.island_generations = metadata.get("island_generations", [0] * len(saved_islands))
             self.last_migration_generation = metadata.get("last_migration_generation", 0)
-            
+
             # Load feature_stats for MAP-Elites grid stability
             self.feature_stats = self._deserialize_feature_stats(metadata.get("feature_stats", {}))
 
@@ -839,7 +841,7 @@ class ProgramDatabase:
     def _is_better(self, program1: Program, program2: Program) -> bool:
         """
         Determine if program1 has better FITNESS than program2
-        
+
         Uses fitness calculation that excludes MAP-Elites feature dimensions
         to prevent pollution of fitness comparisons.
 
@@ -901,7 +903,8 @@ class ProgramDatabase:
         # Find worst program among valid programs
         if valid_archive_programs:
             worst_program = min(
-                valid_archive_programs, key=lambda p: get_fitness_score(p.metrics, self.config.feature_dimensions)
+                valid_archive_programs,
+                key=lambda p: get_fitness_score(p.metrics, self.config.feature_dimensions),
             )
 
             # Replace if new program is better
@@ -1848,7 +1851,7 @@ class ProgramDatabase:
     def _serialize_feature_stats(self) -> Dict[str, Any]:
         """
         Serialize feature_stats for JSON storage
-        
+
         Returns:
             Dictionary that can be JSON-serialized
         """
@@ -1866,26 +1869,28 @@ class ProgramDatabase:
                         serialized_stats[key] = value
                 else:
                     # Convert numpy types to Python native types
-                    if hasattr(value, 'item'):  # numpy scalar
+                    if hasattr(value, "item"):  # numpy scalar
                         serialized_stats[key] = value.item()
                     else:
                         serialized_stats[key] = value
             serialized[feature_name] = serialized_stats
         return serialized
-    
-    def _deserialize_feature_stats(self, stats_dict: Dict[str, Any]) -> Dict[str, Dict[str, Union[float, List[float]]]]:
+
+    def _deserialize_feature_stats(
+        self, stats_dict: Dict[str, Any]
+    ) -> Dict[str, Dict[str, Union[float, List[float]]]]:
         """
         Deserialize feature_stats from loaded JSON
-        
+
         Args:
             stats_dict: Dictionary loaded from JSON
-            
+
         Returns:
             Properly formatted feature_stats dictionary
         """
         if not stats_dict:
             return {}
-            
+
         deserialized = {}
         for feature_name, stats in stats_dict.items():
             if isinstance(stats, dict):
@@ -1897,8 +1902,10 @@ class ProgramDatabase:
                 }
                 deserialized[feature_name] = deserialized_stats
             else:
-                logger.warning(f"Skipping malformed feature_stats entry for '{feature_name}': {stats}")
-        
+                logger.warning(
+                    f"Skipping malformed feature_stats entry for '{feature_name}': {stats}"
+                )
+
         return deserialized
 
     def log_island_status(self) -> None:

@@ -15,8 +15,8 @@ class EvaluationResult:
     This maintains backward compatibility with the existing dict[str, float] contract
     while adding a side-channel for arbitrary artifacts (text or binary data).
 
-    IMPORTANT: For custom MAP-Elites features, metrics values must be raw continuous 
-    scores (e.g., actual counts, percentages, continuous measurements), NOT pre-computed 
+    IMPORTANT: For custom MAP-Elites features, metrics values must be raw continuous
+    scores (e.g., actual counts, percentages, continuous measurements), NOT pre-computed
     bin indices. The database handles all binning internally using min-max scaling.
 
     Examples:

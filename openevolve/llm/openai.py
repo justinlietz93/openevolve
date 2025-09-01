@@ -70,20 +70,24 @@ class OpenAILLM(LLMInterface):
         # These models don't support temperature/top_p and use different parameters
         OPENAI_REASONING_MODEL_PREFIXES = (
             # O-series reasoning models
-            "o1-", "o1",  # o1, o1-mini, o1-preview
-            "o3-", "o3",  # o3, o3-mini, o3-pro  
-            "o4-",        # o4-mini
+            "o1-",
+            "o1",  # o1, o1-mini, o1-preview
+            "o3-",
+            "o3",  # o3, o3-mini, o3-pro
+            "o4-",  # o4-mini
             # GPT-5 series are also reasoning models
-            "gpt-5-", "gpt-5"  # gpt-5, gpt-5-mini, gpt-5-nano
+            "gpt-5-",
+            "gpt-5",  # gpt-5, gpt-5-mini, gpt-5-nano
             # The GPT OSS series are also reasoning models
-            "gpt-oss-120b", "gpt-oss-20b"
+            "gpt-oss-120b",
+            "gpt-oss-20b",
         )
 
         # Check if this is an OpenAI reasoning model
         model_lower = str(self.model).lower()
         is_openai_reasoning_model = (
-            self.api_base == "https://api.openai.com/v1" and 
-            model_lower.startswith(OPENAI_REASONING_MODEL_PREFIXES)
+            self.api_base == "https://api.openai.com/v1"
+            and model_lower.startswith(OPENAI_REASONING_MODEL_PREFIXES)
         )
 
         if is_openai_reasoning_model:

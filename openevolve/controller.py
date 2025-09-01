@@ -353,10 +353,20 @@ class OpenEvolve:
                     best_program = best_by_combined
 
         if best_program:
-            logger.info(
-                f"Evolution complete. Best program has metrics: "
-                f"{format_metrics_safe(best_program.metrics)}"
-            )
+            if (
+                hasattr(self, "parallel_controller")
+                and self.parallel_controller
+                and self.parallel_controller.early_stopping_triggered
+            ):
+                logger.info(
+                    f"🛑 Evolution complete via early stopping. Best program has metrics: "
+                    f"{format_metrics_safe(best_program.metrics)}"
+                )
+            else:
+                logger.info(
+                    f"Evolution complete. Best program has metrics: "
+                    f"{format_metrics_safe(best_program.metrics)}"
+                )
             self._save_best_program(best_program)
             return best_program
         else:
@@ -467,10 +477,13 @@ class OpenEvolve:
             start_iteration, max_iterations, target_score, checkpoint_callback=self._save_checkpoint
         )
 
-        # Check if shutdown was requested
+        # Check if shutdown or early stopping was triggered
         if self.parallel_controller.shutdown_event.is_set():
             logger.info("Evolution stopped due to shutdown request")
             return
+        elif self.parallel_controller.early_stopping_triggered:
+            logger.info("Evolution stopped due to early stopping - saving final checkpoint")
+            # Continue to save final checkpoint for early stopping
 
         # Save final checkpoint if needed
         # Note: start_iteration here is the evolution start (1 for fresh start, not 0)
