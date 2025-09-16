@@ -33,12 +33,16 @@ class OpenAILLM(LLMInterface):
         self.api_base = model_cfg.api_base
         self.api_key = model_cfg.api_key
         self.random_seed = getattr(model_cfg, "random_seed", None)
+        self.reasoning_effort = getattr(model_cfg, "reasoning_effort", None)
 
         # Set up API client
+        # OpenAI client requires max_retries to be int, not None
+        max_retries = self.retries if self.retries is not None else 0
         self.client = openai.OpenAI(
             api_key=self.api_key,
             base_url=self.api_base,
             timeout=self.timeout,
+            max_retries=max_retries,
         )
 
         # Only log unique models to reduce duplication
@@ -98,8 +102,9 @@ class OpenAILLM(LLMInterface):
                 "max_completion_tokens": kwargs.get("max_tokens", self.max_tokens),
             }
             # Add optional reasoning parameters if provided
-            if "reasoning_effort" in kwargs:
-                params["reasoning_effort"] = kwargs["reasoning_effort"]
+            reasoning_effort = kwargs.get("reasoning_effort", self.reasoning_effort)
+            if reasoning_effort is not None:
+                params["reasoning_effort"] = reasoning_effort
             if "verbosity" in kwargs:
                 params["verbosity"] = kwargs["verbosity"]
         else:
@@ -113,8 +118,9 @@ class OpenAILLM(LLMInterface):
             }
 
             # Handle reasoning_effort for open source reasoning models.
-            if "reasoning_effort" in kwargs:
-                params["reasoning_effort"] = kwargs["reasoning_effort"]
+            reasoning_effort = kwargs.get("reasoning_effort", self.reasoning_effort)
+            if reasoning_effort is not None:
+                params["reasoning_effort"] = reasoning_effort
 
         # Add seed parameter for reproducibility if configured
         # Skip seed parameter for Google AI Studio endpoint as it doesn't support it

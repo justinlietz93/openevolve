@@ -304,7 +304,7 @@ python ../../openevolve-run.py initial_program.py evaluator.py --config config.y
 
 ### 📊 Machine Learning and AI
 
-#### [LLM Prompt Optimization](llm_prompt_optimazation/)
+#### [LLM Prompt Optimization](llm_prompt_optimization/)
 **Task:** Evolve prompts for better LLM performance  
 **Achievement:** Discovered effective prompt engineering techniques  
 **Key Lesson:** Self-improving AI systems and prompt evolution  

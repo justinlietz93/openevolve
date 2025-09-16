@@ -110,7 +110,7 @@ YAML-based configuration with hierarchical structure:
 
 ### Development Notes
 
-- Python >=3.9 required
+- Python >=3.10 required
 - Uses OpenAI-compatible APIs for LLM integration
 - Tests use unittest framework
 - Black for code formatting

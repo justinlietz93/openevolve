@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Union
 from openevolve.config import Config, load_config
 from openevolve.database import Program, ProgramDatabase
 from openevolve.evaluator import Evaluator
+from openevolve.evolution_trace import EvolutionTracer
 from openevolve.llm.ensemble import LLMEnsemble
 from openevolve.prompt.sampler import PromptSampler
 from openevolve.process_parallel import ProcessParallelController
@@ -163,6 +164,29 @@ class OpenEvolve:
 
         logger.info(f"Initialized OpenEvolve with {initial_program_path}")
 
+        # Initialize evolution tracer
+        if self.config.evolution_trace.enabled:
+            trace_output_path = self.config.evolution_trace.output_path
+            if not trace_output_path:
+                # Default to output_dir/evolution_trace.{format}
+                trace_output_path = os.path.join(
+                    self.output_dir, 
+                    f"evolution_trace.{self.config.evolution_trace.format}"
+                )
+            
+            self.evolution_tracer = EvolutionTracer(
+                output_path=trace_output_path,
+                format=self.config.evolution_trace.format,
+                include_code=self.config.evolution_trace.include_code,
+                include_prompts=self.config.evolution_trace.include_prompts,
+                enabled=True,
+                buffer_size=self.config.evolution_trace.buffer_size,
+                compress=self.config.evolution_trace.compress
+            )
+            logger.info(f"Evolution tracing enabled: {trace_output_path}")
+        else:
+            self.evolution_tracer = None
+
         # Initialize improved parallel processing components
         self.parallel_controller = None
 
@@ -276,7 +300,7 @@ class OpenEvolve:
         # Initialize improved parallel processing
         try:
             self.parallel_controller = ProcessParallelController(
-                self.config, self.evaluation_file, self.database
+                self.config, self.evaluation_file, self.database, self.evolution_tracer
             )
 
             # Set up signal handlers for graceful shutdown
@@ -319,6 +343,11 @@ class OpenEvolve:
             if self.parallel_controller:
                 self.parallel_controller.stop()
                 self.parallel_controller = None
+            
+            # Close evolution tracer
+            if self.evolution_tracer:
+                self.evolution_tracer.close()
+                logger.info("Evolution tracer closed")
 
         # Get the best program
         best_program = None

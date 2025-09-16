@@ -25,9 +25,6 @@ class PromptSampler:
         self.config = config
         self.template_manager = TemplateManager(custom_template_dir=config.template_dir)
 
-        # Initialize the random number generator
-        random.seed()
-
         # Store custom template mappings
         self.system_template_override = None
         self.user_template_override = None

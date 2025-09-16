@@ -99,14 +99,14 @@ class TestIslandIsolation(unittest.TestCase):
         # Track which islands were sampled
         sampled_islands = []
 
-        def mock_sample(num_inspirations=None):
-            # Record which island was sampled
-            sampled_islands.append(self.database.current_island)
+        def mock_sample_from_island(island_id, num_inspirations=None):
+            # Record which island was sampled (using the island_id parameter)
+            sampled_islands.append(island_id)
             # Return mock parent and inspirations
             mock_program = Program(id="mock", code="", metrics={})
             return mock_program, []
 
-        with patch.object(self.database, "sample", side_effect=mock_sample):
+        with patch.object(self.database, "sample_from_island", side_effect=mock_sample_from_island):
             with patch.object(controller, "executor"):
                 # Submit iterations for different islands
                 controller._submit_iteration(1, island_id=0)
@@ -253,16 +253,22 @@ class TestIslandMigration(unittest.TestCase):
         self.assertGreater(total_programs_after, original_program_count)
         self.assertGreater(sum(island_sizes_after), sum(island_sizes_before))
 
-        # Verify that migrant programs have correct metadata
+        # Verify that migrant programs have correct metadata (new implementation)
         migrant_count = 0
         for program in self.database.programs.values():
             if program.metadata.get("migrant", False):
                 migrant_count += 1
-                # Migrant should have "_migrant_" in their ID
-                self.assertIn("_migrant_", program.id)
+                # With new implementation, migrants have clean UUIDs, not "_migrant_" suffixes
+                self.assertNotIn("_migrant_", program.id, 
+                                "New implementation should not create _migrant suffix programs")
 
         # Should have some migrant programs
         self.assertGreater(migrant_count, 0)
+        
+        # Verify no programs have _migrant_ suffixes anywhere
+        migrant_suffix_count = sum(1 for p in self.database.programs.values() if "_migrant_" in p.id)
+        self.assertEqual(migrant_suffix_count, 0, 
+                        "No programs should have _migrant_ suffixes with new implementation")
 
 
 class TestWorkerPinningEdgeCases(unittest.TestCase):

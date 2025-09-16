@@ -34,8 +34,14 @@ class SerializableResult:
     error: Optional[str] = None
 
 
-def _worker_init(config_dict: dict, evaluation_file: str) -> None:
+def _worker_init(config_dict: dict, evaluation_file: str, parent_env: dict = None) -> None:
     """Initialize worker process with necessary components"""
+    import os
+    
+    # Set environment from parent process
+    if parent_env:
+        os.environ.update(parent_env)
+    
     global _worker_config
     global _worker_evaluation_file
     global _worker_evaluator
@@ -268,10 +274,11 @@ def _run_iteration_worker(
 class ProcessParallelController:
     """Controller for process-based parallel evolution"""
 
-    def __init__(self, config: Config, evaluation_file: str, database: ProgramDatabase):
+    def __init__(self, config: Config, evaluation_file: str, database: ProgramDatabase, evolution_tracer=None):
         self.config = config
         self.evaluation_file = evaluation_file
         self.database = database
+        self.evolution_tracer = evolution_tracer
 
         self.executor: Optional[ProcessPoolExecutor] = None
         self.shutdown_event = mp.Event()
@@ -327,11 +334,15 @@ class ProcessParallelController:
         # We need to be careful with nested dataclasses
         config_dict = self._serialize_config(self.config)
 
+        # Pass current environment to worker processes
+        import os
+        current_env = dict(os.environ)
+        
         # Create process pool with initializer
         self.executor = ProcessPoolExecutor(
             max_workers=self.num_workers,
             initializer=_worker_init,
-            initargs=(config_dict, self.evaluation_file),
+            initargs=(config_dict, self.evaluation_file, current_env),
         )
 
         logger.info(f"Started process pool with {self.num_workers} processes")
@@ -471,6 +482,28 @@ class ProcessParallelController:
                     # Store artifacts
                     if result.artifacts:
                         self.database.store_artifacts(child_program.id, result.artifacts)
+                    
+                    # Log evolution trace
+                    if self.evolution_tracer:
+                        # Retrieve parent program for trace logging
+                        parent_program = self.database.get(result.parent_id) if result.parent_id else None
+                        if parent_program:
+                            # Determine island ID
+                            island_id = child_program.metadata.get("island", self.database.current_island)
+                            
+                            self.evolution_tracer.log_trace(
+                                iteration=completed_iteration,
+                                parent_program=parent_program,
+                                child_program=child_program,
+                                prompt=result.prompt,
+                                llm_response=result.llm_response,
+                                artifacts=result.artifacts,
+                                island_id=island_id,
+                                metadata={
+                                    "iteration_time": result.iteration_time,
+                                    "changes": child_program.metadata.get("changes", ""),
+                                }
+                            )
 
                     # Log prompts
                     if result.prompt:
@@ -671,18 +704,12 @@ class ProcessParallelController:
             # Use specified island or current island
             target_island = island_id if island_id is not None else self.database.current_island
 
-            # Temporarily set database to target island for sampling
-            original_island = self.database.current_island
-            self.database.current_island = target_island
-
-            try:
-                # Sample parent and inspirations from the target island
-                parent, inspirations = self.database.sample(
-                    num_inspirations=self.config.prompt.num_top_programs
-                )
-            finally:
-                # Always restore original island state
-                self.database.current_island = original_island
+            # Use thread-safe sampling that doesn't modify shared state
+            # This fixes the race condition from GitHub issue #246
+            parent, inspirations = self.database.sample_from_island(
+                island_id=target_island,
+                num_inspirations=self.config.prompt.num_top_programs
+            )
 
             # Create database snapshot
             db_snapshot = self._create_database_snapshot()

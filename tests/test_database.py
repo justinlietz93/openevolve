@@ -145,7 +145,7 @@ class TestProgramDatabase(unittest.TestCase):
             self.assertLess(coord, self.db.feature_bins)
 
     def test_feature_map_operations(self):
-        """Test feature map operations for MAP-Elites"""
+        """Test per-island feature map operations for MAP-Elites"""
         # Add some initial programs to establish diversity reference set
         for i in range(3):
             init_program = Program(
@@ -173,34 +173,36 @@ class TestProgramDatabase(unittest.TestCase):
         self.db.add(program1)
         self.db.add(program2)
 
-        # Both programs should be in the feature map
-        # Since they have different codes, they should have different keys
+        # Both programs should be in the database
         self.assertIn("map_test1", self.db.programs)
         self.assertIn("map_test2", self.db.programs)
 
-        # Check that both programs are represented in the feature map
-        feature_map_values = list(self.db.feature_map.values())
+        # Check that programs are represented in island feature maps
+        all_feature_map_values = []
+        for island_map in self.db.island_feature_maps:
+            all_feature_map_values.extend(island_map.values())
 
-        # At least one of our test programs should be in the feature map
-        test_programs_in_map = [v for v in feature_map_values if v in ["map_test1", "map_test2"]]
+        # At least one of our test programs should be in some island's feature map
+        test_programs_in_map = [v for v in all_feature_map_values if v in ["map_test1", "map_test2"]]
         self.assertGreater(
-            len(test_programs_in_map), 0, "At least one test program should be in feature map"
+            len(test_programs_in_map), 0, "At least one test program should be in island feature maps"
         )
 
-        # If both are in the map, verify they have different keys (due to diversity)
-        if "map_test1" in feature_map_values and "map_test2" in feature_map_values:
-            # Find their keys
-            key1 = None
-            key2 = None
-            for k, v in self.db.feature_map.items():
-                if v == "map_test1":
-                    key1 = k
-                elif v == "map_test2":
-                    key2 = k
-
-            # If they have the same key, the better program should be kept
-            if key1 == key2:
-                self.assertEqual(self.db.feature_map[key1], "map_test2")
+        # If both are in the same island's map with the same feature coordinates, 
+        # verify the better program is kept
+        for island_map in self.db.island_feature_maps:
+            if "map_test1" in island_map.values() and "map_test2" in island_map.values():
+                # Find their keys in this island
+                key1 = key2 = None
+                for k, v in island_map.items():
+                    if v == "map_test1":
+                        key1 = k
+                    elif v == "map_test2":
+                        key2 = k
+                
+                # If they have the same key, the better program should be kept
+                if key1 == key2:
+                    self.assertEqual(island_map[key1], "map_test2")
 
     def test_get_top_programs_with_metrics(self):
         """Test get_top_programs with specific metrics"""
@@ -484,9 +486,10 @@ class TestProgramDatabase(unittest.TestCase):
         # Store original ID
         original_id = migrant_program.id
 
-        # Count initial programs with "_migrant_" pattern (created by migration)
-        initial_migrant_count = sum(1 for pid in multi_db.programs if "_migrant_" in pid)
-        self.assertEqual(initial_migrant_count, 0)  # Should be none initially
+        # Count initial programs (no _migrant suffixes should exist)
+        initial_programs = set(multi_db.programs.keys())
+        initial_migrant_count = sum(1 for pid in initial_programs if "_migrant_" in pid)
+        self.assertEqual(initial_migrant_count, 0)  # Should be none with new implementation
 
         # Run migration
         multi_db.island_generations[0] = config.database.migration_interval
@@ -495,25 +498,18 @@ class TestProgramDatabase(unittest.TestCase):
         multi_db.migrate_programs()
 
         # Check that the migrant program wasn't re-migrated
-        # It should still exist with the same ID (not a new migrant ID)
+        # It should still exist with the same ID
         still_exists = multi_db.get(original_id)
         self.assertIsNotNone(still_exists)
 
-        # Count new programs created by migration (identified by "_migrant_" pattern)
-        new_migrant_ids = [pid for pid in multi_db.programs if "_migrant_" in pid]
-
-        # Each non-migrant program (2 of them) migrates to 2 adjacent islands
-        # So we expect 2 * 2 = 4 new migrant programs
-        # The already-marked migrant (test_prog_0) should NOT create any new copies
-        self.assertEqual(len(new_migrant_ids), 4)
-
-        # Verify the already-migrant program didn't create new copies
-        migrant_descendants = [pid for pid in new_migrant_ids if original_id in pid]
-        self.assertEqual(
-            len(migrant_descendants),
-            0,
-            f"Program {original_id} should not have created migrant copies",
-        )
+        # With new implementation, no programs should have _migrant_ suffixes
+        new_programs = set(multi_db.programs.keys())
+        new_migrant_ids = [pid for pid in new_programs if "_migrant_" in pid]
+        self.assertEqual(len(new_migrant_ids), 0, "New implementation should not create _migrant suffix programs")
+        
+        # Verify that programs are still distributed across islands (migration occurred)
+        total_programs_in_maps = sum(len(island_map) for island_map in multi_db.island_feature_maps)
+        self.assertGreaterEqual(total_programs_in_maps, 3, "Programs should be distributed in island feature maps")
 
     def test_empty_island_initialization_creates_copies(self):
         """Test that empty islands are initialized with copies, not shared references"""

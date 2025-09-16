@@ -97,7 +97,7 @@ class TestFeatureStatsPersistence(unittest.TestCase):
 
         # Create metadata without feature_stats (simulating old checkpoint)
         metadata = {
-            "feature_map": {},
+            "island_feature_maps": [{}],  # Updated to new format
             "islands": [[]],
             "archive": [],
             "best_program_id": None,

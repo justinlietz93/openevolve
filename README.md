@@ -80,27 +80,51 @@ Get from zero to evolving code in **30 seconds**:
 # Install OpenEvolve
 pip install openevolve
 
-# Set your LLM API key (works with any OpenAI-compatible provider)
-export OPENAI_API_KEY="your-api-key"
+# The example uses Google Gemini by default (free tier available)
+# Get your API key from: https://aistudio.google.com/apikey
+export OPENAI_API_KEY="your-gemini-api-key"  # Yes, use OPENAI_API_KEY env var
 
 # Run your first evolution!
-python -c "
-from openevolve import run_evolution
-result = run_evolution(
-    'examples/function_minimization/initial_program.py',
-    'examples/function_minimization/evaluator.py'
-)
-print(f'Best score: {result.best_score:.4f}')
-"
-```
-
-**Want more control?** Use the full CLI:
-
-```bash
 python openevolve-run.py examples/function_minimization/initial_program.py \
   examples/function_minimization/evaluator.py \
   --config examples/function_minimization/config.yaml \
-  --iterations 1000
+  --iterations 50
+```
+
+**Note:** The example config uses Gemini by default, but you can use any OpenAI-compatible provider by modifying the `config.yaml`. See the [configs](configs/) for full configuration options.
+
+### 📚 **Library Usage**
+
+OpenEvolve can be used as a library without any external files:
+
+```python
+from openevolve import run_evolution, evolve_function
+
+# Evolution with inline code (no files needed!)
+result = run_evolution(
+    initial_program='''
+    def fibonacci(n):
+        if n <= 1: return n
+        return fibonacci(n-1) + fibonacci(n-2)
+    ''',
+    evaluator=lambda path: {"score": benchmark_fib(path)},
+    iterations=100
+)
+
+# Evolve Python functions directly
+def bubble_sort(arr):
+    for i in range(len(arr)):
+        for j in range(len(arr)-1):
+            if arr[j] > arr[j+1]:
+                arr[j], arr[j+1] = arr[j+1], arr[j] 
+    return arr
+
+result = evolve_function(
+    bubble_sort,
+    test_cases=[([3,1,2], [1,2,3]), ([5,2,8], [2,5,8])],
+    iterations=50
+)
+print(f"Evolved sorting algorithm: {result.best_code}")
 ```
 
 **Prefer Docker?**
@@ -213,7 +237,7 @@ OpenEvolve implements a sophisticated **evolutionary coding pipeline** that goes
 ## 🛠 Installation & Setup
 
 ### Requirements
-- **Python**: 3.9+ 
+- **Python**: 3.10+ 
 - **LLM Access**: Any OpenAI-compatible API
 - **Optional**: Docker for containerized runs
 

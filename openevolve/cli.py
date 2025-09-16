@@ -97,6 +97,13 @@ async def main_async() -> int:
             config.llm.secondary_model = args.secondary_model
             print(f"Using secondary model: {config.llm.secondary_model}")
 
+        # Rebuild models list to apply CLI overrides
+        if args.primary_model or args.secondary_model:
+            config.llm.rebuild_models()
+            print(f"Applied CLI model overrides - active models:")
+            for i, model in enumerate(config.llm.models):
+                print(f"  Model {i+1}: {model.name} (weight: {model.weight})")
+
     # Initialize OpenEvolve
     try:
         openevolve = OpenEvolve(

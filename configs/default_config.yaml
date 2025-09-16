@@ -159,3 +159,14 @@ evaluator:
   # LLM-based feedback (experimental)
   use_llm_feedback: false             # Use LLM to evaluate code quality
   llm_feedback_weight: 0.1            # Weight for LLM feedback in final score
+
+# Evolution trace configuration
+# Logs detailed traces of program evolution for RL training and analysis
+evolution_trace:
+  enabled: false                      # Enable evolution trace logging
+  format: 'jsonl'                     # Output format: 'jsonl', 'json', or 'hdf5'
+  include_code: false                 # Include full program code in traces
+  include_prompts: true               # Include prompts and LLM responses
+  output_path: null                   # Path for trace output (defaults to output_dir/evolution_trace.{format})
+  buffer_size: 10                     # Number of traces to buffer before writing
+  compress: false                     # Compress output file (jsonl only)
