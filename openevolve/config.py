@@ -337,6 +337,7 @@ class Config:
     log_dir: Optional[str] = None
     random_seed: Optional[int] = 42
     language: str = None
+    file_suffix: str = ".py"
 
     # Component configurations
     llm: LLMConfig = field(default_factory=LLMConfig)

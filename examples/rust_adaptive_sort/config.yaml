@@ -4,6 +4,7 @@
 max_iterations: 150
 checkpoint_interval: 15
 log_level: "INFO"
+file_suffix: ".rs"
 
 # LLM configuration
 llm:

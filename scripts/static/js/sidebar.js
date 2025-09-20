@@ -2,15 +2,279 @@ import { allNodeData, archiveProgramIds, formatMetrics, renderMetricBar, getHigh
 import { scrollAndSelectNodeById } from './graph.js';
 
 const sidebar = document.getElementById('sidebar');
+// Add a draggable resizer to let users change the sidebar width.
+// Creates a slim handle at the left edge of the sidebar and uses pointer events
+// to resize. The chosen width is persisted to localStorage under `sidebarWidth`.
+(function enableSidebarResizer() {
+    if (!sidebar) return;
+    try {
+        const STORAGE_KEY = 'sidebarWidth';
+        const DEFAULT_WIDTH_PX = 360;
+        const MIN_WIDTH_PX = 200;
+        const MAX_WIDTH_PX = Math.max(window.innerWidth - 100, 400);
+
+        // Restore saved width (if any)
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            sidebar.style.width = saved;
+        } else if (!sidebar.style.width) {
+            sidebar.style.width = DEFAULT_WIDTH_PX + 'px';
+        }
+
+        // Do not override sidebar positioning from CSS; assume #sidebar styles control placement
+
+        // Create resizer element (left edge)
+        const resizer = document.createElement('div');
+        resizer.id = 'sidebar-resizer';
+        resizer.setAttribute('role', 'separator');
+        resizer.setAttribute('aria-orientation', 'vertical');
+        resizer.setAttribute('tabindex', '0');
+        // Make the hit area a bit larger and use flex to center an inner visible handle
+        Object.assign(resizer.style, {
+            position: 'fixed',
+            left: '0px', // will be calculated
+            top: '0px',
+            width: '14px',
+            cursor: 'col-resize',
+            zIndex: '9999',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            transition: 'background 120ms',
+            // disable pointerEvents by default so expanding sidebar doesn't immediately capture the mouse
+            pointerEvents: 'none',
+        });
+        
+        // Visible inner handle
+        const handle = document.createElement('div');
+        handle.id = 'sidebar-resizer-handle';
+        handle.setAttribute('aria-hidden', 'true');
+        Object.assign(handle.style, {
+            width: '6px',
+            height: '40px',
+            borderRadius: '6px',
+            // Use a subtle two-tone gradient and light border so it stands out in dark and light themes
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.9), rgba(200,200,200,0.6))',
+            border: '1px solid rgba(0,0,0,0.12)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+            transition: 'background 120ms, transform 120ms, box-shadow 120ms',
+        });
+        resizer.appendChild(handle);
+        resizer.title = 'Drag to resize sidebar';
+
+        // Hover/focus effects to make it obvious
+        function _resizerHoverOn() { resizer.style.background = 'rgba(0,0,0,0.04)'; handle.style.transform = 'scale(1.06)'; handle.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)'; }
+        function _resizerHoverOff() { resizer.style.background = 'transparent'; handle.style.transform = 'scale(1)'; handle.style.boxShadow = '0 1px 4px rgba(0,0,0,0.15)'; }
+        resizer.addEventListener('pointerenter', _resizerHoverOn);
+        resizer.addEventListener('pointerleave', _resizerHoverOff);
+        resizer.addEventListener('focus', _resizerHoverOn);
+        resizer.addEventListener('blur', _resizerHoverOff);
+
+        // Insert the resizer as first child so it sits on the left edge
+        // if (sidebar.firstChild) sidebar.insertBefore(resizer, sidebar.firstChild);
+        // else sidebar.appendChild(resizer);
+        // Append to body so it's not clipped by sidebar scrolling/overflow
+        document.body.appendChild(resizer);
+
+        // Position update function to align the fixed resizer with the sidebar left edge
+        function updateResizerPosition() {
+            const rect = sidebar.getBoundingClientRect();
+            if (!rect || !isFinite(rect.left) || rect.width === 0) return;
+            // Consider sidebar hidden if its left edge is at or past the right viewport edge
+            const viewportRight = window.innerWidth || document.documentElement.clientWidth;
+            const isOffscreen = rect.left >= (viewportRight - 8);
+            if (isOffscreen || getComputedStyle(sidebar).display === 'none') {
+                resizer.style.display = 'none';
+                return;
+            }
+            // Ensure resizer is shown and aligned with the left edge of the sidebar
+            resizer.style.display = 'flex';
+            const left = Math.round(rect.left - 7);
+            resizer.style.left = left + 'px';
+            resizer.style.top = Math.round(rect.top) + 'px';
+            resizer.style.height = Math.max(40, Math.round(rect.height)) + 'px';
+        }
+        // Initial position
+        updateResizerPosition();
+        // Keep in sync on resize and mutation of sidebar attributes
+        window.addEventListener('resize', updateResizerPosition);
+        const mo = new MutationObserver(updateResizerPosition);
+        mo.observe(sidebar, { attributes: true, attributeFilter: ['style', 'class'] });
+
+        // Continuous updating while sidebar transitions or when mouse moves near the edge
+        let rafId = null;
+        function rafLoop() {
+            updateResizerPosition();
+            rafId = requestAnimationFrame(rafLoop);
+        }
+        function startContinuousUpdate() {
+            if (!rafId) rafLoop();
+        }
+        function stopContinuousUpdate() {
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+        }
+
+        // If the sidebar has a CSS transition on transform, run rAF during it to keep alignment
+        sidebar.addEventListener('transitionstart', startContinuousUpdate);
+        sidebar.addEventListener('transitionend', function() { updateResizerPosition(); stopContinuousUpdate(); });
+        sidebar.addEventListener('transitioncancel', function() { updateResizerPosition(); stopContinuousUpdate(); });
+
+        // Track last mouse position and proximity-based enabling of pointer events
+        // to avoid the sidebar itself stealing the pointer when it expands under the cursor.
+        const PROXIMITY_PX = 28;
+        let mousePending = false;
+        let lastMouseX = null;
+        let lastMouseY = null;
+        function checkPointerProximity(clientX, clientY) {
+            if (!resizer || resizer.style.display === 'none') return;
+            const r = resizer.getBoundingClientRect();
+            if (!r || r.width === 0) return;
+            // Compute distance to the resizer vertical centerline
+            const dx = Math.max(r.left - clientX, clientX - (r.left + r.width));
+            const dy = Math.max(r.top - clientY, clientY - (r.top + r.height));
+            const within = (dx <= PROXIMITY_PX && dy <= PROXIMITY_PX) || (clientX >= r.left && clientX <= r.left + r.width && clientY >= r.top && clientY <= r.top + r.height);
+            if (within) {
+                if (resizer.style.pointerEvents !== 'auto') {
+                    resizer.style.pointerEvents = 'auto';
+                    resizer.classList.add('resizer-proximate');
+                }
+            } else {
+                if (resizer.style.pointerEvents !== 'none' && !isResizing) {
+                    resizer.style.pointerEvents = 'none';
+                    resizer.classList.remove('resizer-proximate');
+                }
+            }
+            // Also control the sidebar's pointer events: only enable when within proximity, when resizing, or when sidebar is sticky
+            try {
+                const srect = sidebar.getBoundingClientRect();
+                const viewportRight = window.innerWidth || document.documentElement.clientWidth;
+                const isOffscreen = srect.left >= (viewportRight - 8);
+                if (isOffscreen || getComputedStyle(sidebar).display === 'none') {
+                    sidebar.style.pointerEvents = 'none';
+                } else if (within || isResizing || sidebarSticky) {
+                    sidebar.style.pointerEvents = 'auto';
+                } else {
+                    // keep the sidebar unclickable unless cursor is near it
+                    sidebar.style.pointerEvents = 'none';
+                }
+            } catch (err) {
+                // ignore
+            }
+        }
+        document.addEventListener('mousemove', function (e) {
+            lastMouseX = e.clientX; lastMouseY = e.clientY;
+            if (!mousePending) {
+                mousePending = true;
+                requestAnimationFrame(function () {
+                    updateResizerPosition();
+                    checkPointerProximity(lastMouseX, lastMouseY);
+                    mousePending = false;
+                });
+            }
+        });
+
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        function clampWidth(w) {
+            const max = Math.min(MAX_WIDTH_PX, Math.floor(window.innerWidth - 100));
+            return Math.max(MIN_WIDTH_PX, Math.min(w, max));
+        }
+
+        function onPointerMove(e) {
+            if (!isResizing) return;
+            const dx = e.clientX - startX; // positive when moving right
+            // Since the resizer is on the left edge of a right-aligned sidebar,
+            // moving pointer to the right should make the sidebar narrower.
+            // Compute new width as startWidth - dx.
+            let newWidth = Math.round(startWidth - dx);
+            newWidth = clampWidth(newWidth);
+            sidebar.style.width = newWidth + 'px';
+        }
+
+        function onPointerUp(e) {
+            if (!isResizing) return;
+            isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            try { localStorage.setItem(STORAGE_KEY, sidebar.style.width); } catch (err) { /* ignore */ }
+            // Remove global listeners
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+        }
+
+        resizer.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = parseInt(window.getComputedStyle(sidebar).width, 10) || DEFAULT_WIDTH_PX;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+            // attempt to capture pointer so touch works well
+            try { e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); } catch (err) { }
+            // Update resizer position during drag (useful when width changes)
+            updateResizerPosition();
+        });
+
+        // Keyboard accessibility: left/right arrows adjust width
+        resizer.addEventListener('keydown', (e) => {
+            const step = 20;
+            let cur = parseInt(window.getComputedStyle(sidebar).width, 10) || DEFAULT_WIDTH_PX;
+            if (e.key === 'ArrowLeft') {
+                cur = clampWidth(cur - step);
+                sidebar.style.width = cur + 'px';
+                try { localStorage.setItem(STORAGE_KEY, sidebar.style.width); } catch (err) {}
+                e.preventDefault();
+            } else if (e.key === 'ArrowRight') {
+                cur = clampWidth(cur + step);
+                sidebar.style.width = cur + 'px';
+                try { localStorage.setItem(STORAGE_KEY, sidebar.style.width); } catch (err) {}
+                e.preventDefault();
+            } else if (e.key === 'Home') {
+                sidebar.style.width = DEFAULT_WIDTH_PX + 'px';
+                try { localStorage.setItem(STORAGE_KEY, sidebar.style.width); } catch (err) {}
+                e.preventDefault();
+            }
+        });
+
+        // Make sure the stored max width updates on window resize
+        window.addEventListener('resize', () => {
+            const cur = parseInt(window.getComputedStyle(sidebar).width, 10) || DEFAULT_WIDTH_PX;
+            const clamped = clampWidth(cur);
+            if (clamped !== cur) {
+                sidebar.style.width = clamped + 'px';
+                try { localStorage.setItem(STORAGE_KEY, sidebar.style.width); } catch (err) {}
+            }
+            updateResizerPosition();
+        });
+        // When sidebar is shown/hidden via showSidebar/hideSidebar functions, keep resizer sync
+        const showHideObserver = new MutationObserver(updateResizerPosition);
+        showHideObserver.observe(sidebar, { attributes: true, attributeFilter: ['style', 'class'] });
+    } catch (err) {
+        // don't crash the rest of the sidebar code if resizing support fails
+        console.warn('sidebar resizer init failed', err);
+    }
+})();
+
 export let sidebarSticky = false;
 let lastSidebarTab = null;
 
 export function showSidebar() {
     sidebar.style.transform = 'translateX(0)';
+    // When explicitly shown, enable pointer events so controls are interactive
+    try { sidebar.style.pointerEvents = 'auto'; } catch (e) {}
 }
 export function hideSidebar() {
     sidebar.style.transform = 'translateX(100%)';
     sidebarSticky = false;
+    try { sidebar.style.pointerEvents = 'none'; } catch (e) {}
 }
 
 export function showSidebarContent(d, fromHover = false) {
@@ -44,84 +308,143 @@ export function showSidebarContent(d, fromHover = false) {
     const clones = allNodeData.filter(n => getBaseId(n.id) === baseId && n.id !== d.id);
     if (clones.length > 0) tabNames.push('Clones');
 
-    let activeTab = lastSidebarTab && tabNames.includes(lastSidebarTab) ? lastSidebarTab : tabNames[0];
-
-    // Helper to render tab content
-    function renderSidebarTabContent(tabName, d, children) {
-        if (tabName === 'Code') {
-            return `<pre class="sidebar-code-pre">${d.code}</pre>`;
-        }
-        if (tabName === 'Prompts') {
-            // Prompt select logic
-            let promptOptions = [];
-            let promptMap = {};
-            if (d.prompts && typeof d.prompts === 'object') {
-                for (const [k, v] of Object.entries(d.prompts)) {
-                    if (v && typeof v === 'object' && !Array.isArray(v)) {
-                        for (const [subKey, subVal] of Object.entries(v)) {
-                            const optLabel = `${k} - ${subKey}`;
-                            promptOptions.push(optLabel);
-                            promptMap[optLabel] = subVal;
-                        }
-                    } else {
-                        const optLabel = `${k}`;
-                        promptOptions.push(optLabel);
-                        promptMap[optLabel] = v;
-                    }
+    // Add a Diff tab when a parent exists with code to compare against
+    const parentNodeForDiff = d.parent_id && d.parent_id !== 'None' ? allNodeData.find(n => n.id == d.parent_id) : null;
+    if (parentNodeForDiff && parentNodeForDiff.code && parentNodeForDiff.code.trim() !== '') {
+        tabNames.push('Diff');
+    }
+ 
+        let activeTab = lastSidebarTab && tabNames.includes(lastSidebarTab) ? lastSidebarTab : tabNames[0];
+ 
+        // Helper to render tab content
+        // Simple line-level LCS diff renderer between two code strings
+        function renderCodeDiff(aCode, bCode) {
+            const a = (aCode || '').split('\n');
+            const b = (bCode || '').split('\n');
+            const m = a.length, n = b.length;
+            // build LCS table
+            const dp = Array.from({length: m+1}, () => new Array(n+1).fill(0));
+            for (let ii = m-1; ii >= 0; --ii) {
+                for (let jj = n-1; jj >= 0; --jj) {
+                    if (a[ii] === b[jj]) dp[ii][jj] = dp[ii+1][jj+1] + 1;
+                    else dp[ii][jj] = Math.max(dp[ii+1][jj], dp[ii][jj+1]);
                 }
             }
-            // Artifacts
-            if (d.artifacts_json) {
-                const optLabel = `artifacts`;
-                promptOptions.push(optLabel);
-                promptMap[optLabel] = d.artifacts_json;
+            // backtrack
+            let i = 0, j = 0;
+            const parts = [];
+            while (i < m && j < n) {
+                if (a[i] === b[j]) {
+                    parts.push({type: 'eq', line: a[i]});
+                    i++; j++; 
+                } else if (dp[i+1][j] >= dp[i][j+1]) {
+                    parts.push({type: 'del', line: a[i]});
+                    i++;
+                } else {
+                    parts.push({type: 'ins', line: b[j]});
+                    j++;
+                }
             }
-            // Get last selected prompt from localStorage, or default to first
-            let lastPromptKey = localStorage.getItem('sidebarPromptSelect') || promptOptions[0] || '';
-            if (!promptMap[lastPromptKey]) lastPromptKey = promptOptions[0] || '';
-            // Build select box
-            let selectHtml = '';
-            if (promptOptions.length > 1) {
-                selectHtml = `<select id="sidebar-prompt-select" style="margin-bottom:0.7em;max-width:100%;font-size:1em;">
-                    ${promptOptions.map(opt => `<option value="${opt}"${opt===lastPromptKey?' selected':''}>${opt}</option>`).join('')}
-                </select>`;
-            }
-            // Show only the selected prompt
-            let promptVal = promptMap[lastPromptKey];
-            let promptHtml = `<pre class="sidebar-pre">${promptVal ?? ''}</pre>`;
-            return selectHtml + promptHtml;
-        }
-        if (tabName === 'Children') {
-            const metric = (document.getElementById('metric-select') && document.getElementById('metric-select').value) || 'combined_score';
-            let min = 0, max = 1;
-            const vals = children.map(child => (child.metrics && typeof child.metrics[metric] === 'number') ? child.metrics[metric] : null).filter(x => x !== null);
-            if (vals.length > 0) {
-                min = Math.min(...vals);
-                max = Math.max(...vals);
-            }
-            return `<div><ul style='margin:0.5em 0 0 1em;padding:0;'>` +
-                children.map(child => {
-                    let val = (child.metrics && typeof child.metrics[metric] === 'number') ? child.metrics[metric].toFixed(4) : '(no value)';
-                    let bar = (child.metrics && typeof child.metrics[metric] === 'number') ? renderMetricBar(child.metrics[metric], min, max) : '';
-                    return `<li style='margin-bottom:0.3em;'><a href="#" class="child-link" data-child="${child.id}">${child.id}</a><br /><br /> <span style='margin-left:0.5em;'>${val}</span> ${bar}</li>`;
-                }).join('') +
-                `</ul></div>`;
-        }
-        if (tabName === 'Clones') {
-            return `<div><ul style='margin:0.5em 0 0 1em;padding:0;'>` +
-                clones.map(clone =>
-                    `<li style='margin-bottom:0.3em;'><a href="#" class="clone-link" data-clone="${clone.id}">${clone.id}</a></li>`
-                ).join('') +
-                `</ul></div>`;
-        }
-        return '';
-    }
+            while (i < m) { parts.push({type: 'del', line: a[i++]}); }
+            while (j < n) { parts.push({type: 'ins', line: b[j++]}); }
 
-    if (tabNames.length > 0) {
-        tabHtml = '<div id="sidebar-tab-bar" style="display:flex;gap:0.7em;margin-bottom:0.7em;">' +
-            tabNames.map((name) => `<span class="sidebar-tab${name===activeTab?' active':''}" data-tab="${name}">${name}</span>`).join('') + '</div>';
-        tabContentHtml = `<div id="sidebar-tab-content">${renderSidebarTabContent(activeTab, d, children)}</div>`;
-    }
+            // Render HTML with inline styles
+            const htmlLines = parts.map(function(p) {
+                if (p.type === 'eq') return '<div style="white-space:pre-wrap;">' + escapeHtml(p.line) + '</div>';
+                if (p.type === 'del') return '<div style="background:#fff0f0;color:#8b1a1a;padding:0.08em 0.3em;border-left:3px solid #f26;white-space:pre-wrap;">- ' + escapeHtml(p.line) + '</div>';
+                return '<div style="background:#f2fff2;color:#116611;padding:0.08em 0.3em;border-left:3px solid #2a8;white-space:pre-wrap;">+ ' + escapeHtml(p.line) + '</div>';
+            });
+            return '<div style="font-family: \'Fira Mono\', monospace; font-size:0.95em; line-height:1.35;">' +
+                '<div style="margin-bottom:0.4em;color:#666;">Showing diff between program and its parent (parent id: ' + (parentNodeForDiff ? parentNodeForDiff.id : 'N/A') + ')</div>' +
+                htmlLines.join('') + '</div>';
+        }
+
+        // small helper to escape HTML
+        function escapeHtml(s) {
+            return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function renderSidebarTabContent(tabName, d, children) {
+            if (tabName === 'Code') {
+                return `<pre class="sidebar-code-pre">${escapeHtml(d.code)}</pre>`;
+            }
+            if (tabName === 'Prompts') {
+                // Prompt select logic
+                let promptOptions = [];
+                let promptMap = {};
+                if (d.prompts && typeof d.prompts === 'object') {
+                    for (const [k, v] of Object.entries(d.prompts)) {
+                        if (v && typeof v === 'object' && !Array.isArray(v)) {
+                            for (const [subKey, subVal] of Object.entries(v)) {
+                                 const optLabel = `${k} - ${subKey}`;
+                                 promptOptions.push(optLabel);
+                                 promptMap[optLabel] = subVal;
+                             }
+                         } else {
+                             const optLabel = `${k}`;
+                             promptOptions.push(optLabel);
+                             promptMap[optLabel] = v;
+                         }
+                     }
+                 }
+                 // Artifacts
+                 if (d.artifacts_json) {
+                     const optLabel = `artifacts`;
+                     promptOptions.push(optLabel);
+                     promptMap[optLabel] = d.artifacts_json;
+                 }
+                 // Get last selected prompt from localStorage, or default to first
+                 let lastPromptKey = localStorage.getItem('sidebarPromptSelect') || promptOptions[0] || '';
+                 if (!promptMap[lastPromptKey]) lastPromptKey = promptOptions[0] || '';
+                 // Build select box
+                 let selectHtml = '';
+                 if (promptOptions.length > 1) {
+                     selectHtml = `<select id="sidebar-prompt-select" style="margin-bottom:0.7em;max-width:100%;font-size:1em;">
+                         ${promptOptions.map(opt => `<option value="${opt}"${opt===lastPromptKey?' selected':''}>${opt}</option>`).join('')}
+                     </select>`;
+                 }
+                 // Show only the selected prompt
+                 let promptVal = promptMap[lastPromptKey];
+                 let promptHtml = `<pre class="sidebar-pre">${promptVal ?? ''}</pre>`;
+                 return selectHtml + promptHtml;
+             }
+             if (tabName === 'Children') {
+                 const metric = (document.getElementById('metric-select') && document.getElementById('metric-select').value) || 'combined_score';
+                 let min = 0, max = 1;
+                 const vals = children.map(child => (child.metrics && typeof child.metrics[metric] === 'number') ? child.metrics[metric] : null).filter(x => x !== null);
+                 if (vals.length > 0) {
+                     min = Math.min(...vals);
+                     max = Math.max(...vals);
+                 }
+                 return `<div><ul style='margin:0.5em 0 0 1em;padding:0;'>` +
+                     children.map(child => {
+                         let val = (child.metrics && typeof child.metrics[metric] === 'number') ? child.metrics[metric].toFixed(4) : '(no value)';
+                         let bar = (child.metrics && typeof child.metrics[metric] === 'number') ? renderMetricBar(child.metrics[metric], min, max) : '';
+                         return `<li style='margin-bottom:0.3em;'><a href="#" class="child-link" data-child="${child.id}">${child.id}</a><br /><br /> <span style='margin-left:0.5em;'>${val}</span> ${bar}</li>`;
+                     }).join('') +
+                     `</ul></div>`;
+             }
+             if (tabName === 'Clones') {
+                 return `<div><ul style='margin:0.5em 0 0 1em;padding:0;'>` +
+                     clones.map(clone =>
+                         `<li style='margin-bottom:0.3em;'><a href="#" class="clone-link" data-clone="${clone.id}">${clone.id}</a></li>`
+                     ).join('') +
+                     `</ul></div>`;
+             }
+             if (tabName === 'Diff') {
+                 const parentNode = parentNodeForDiff;
+                 const parentCode = parentNode ? parentNode.code || '' : '';
+                 const curCode = d.code || '';
+                 return renderCodeDiff(parentCode, curCode);
+             }
+             return '';
+         }
+ 
+     if (tabNames.length > 0) {
+         tabHtml = '<div id="sidebar-tab-bar" style="display:flex;gap:0.7em;margin-bottom:0.7em;">' +
+             tabNames.map((name) => `<span class="sidebar-tab${name===activeTab?' active':''}" data-tab="${name}">${name}</span>`).join('') + '</div>';
+         tabContentHtml = `<div id="sidebar-tab-content">${renderSidebarTabContent(activeTab, d, children)}</div>`;
+     }
     let parentIslandHtml = '';
     if (d.parent_id && d.parent_id !== 'None') {
         const parent = allNodeData.find(n => n.id == d.parent_id);
@@ -328,4 +651,17 @@ export function openInNewTab(event, d) {
 
 export function setSidebarSticky(val) {
     sidebarSticky = val;
+    try {
+        sidebar.style.pointerEvents = val ? 'auto' : 'none';
+    } catch (e) {}
+}
+// Helper to escape HTML so code can be shown verbatim inside <pre>
+function escapeHtml(str) {
+    if (str === undefined || str === null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }

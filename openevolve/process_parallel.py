@@ -125,6 +125,7 @@ def _lazy_init_worker_components():
             evaluator_llm,
             evaluator_prompt,
             database=None,  # No shared database in worker
+            suffix=getattr(_worker_config, 'file_suffix', '.py'),
         )
 
 
@@ -274,11 +275,12 @@ def _run_iteration_worker(
 class ProcessParallelController:
     """Controller for process-based parallel evolution"""
 
-    def __init__(self, config: Config, evaluation_file: str, database: ProgramDatabase, evolution_tracer=None):
+    def __init__(self, config: Config, evaluation_file: str, database: ProgramDatabase, evolution_tracer=None, file_suffix: str = ".py"):
         self.config = config
         self.evaluation_file = evaluation_file
         self.database = database
         self.evolution_tracer = evolution_tracer
+        self.file_suffix = file_suffix
 
         self.executor: Optional[ProcessPoolExecutor] = None
         self.shutdown_event = mp.Event()
@@ -326,6 +328,7 @@ class ProcessParallelController:
             "diff_based_evolution": config.diff_based_evolution,
             "max_code_length": config.max_code_length,
             "language": config.language,
+            "file_suffix": self.file_suffix,
         }
 
     def start(self) -> None:
