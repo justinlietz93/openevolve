@@ -1,0 +1,120 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#616161','actorBorder':'#0d47a1','actorBkg':'#90caf9','actorTextColor':'#000','signalColor':'#424242','signalTextColor':'#000','labelBoxBkgColor':'#e3f2fd','labelBoxBorderColor':'#1976d2','labelTextColor':'#000','loopTextColor':'#000','noteBorderColor':'#ff9800','noteBkgColor':'#fff3e0','noteTextColor':'#000'}}}%%
+
+sequenceDiagram
+    autonumber
+    
+    participant WKR as Iteration Worker
+    participant EVAL as Evaluator
+    participant POOL as TaskPool
+    participant S1 as Stage 1: Validation
+    participant S2 as Stage 2: Testing
+    participant S3 as Stage 3: Comprehensive
+    participant EXEC as Code Executor
+    participant USER as User Evaluator
+    participant FS as Temp File System
+    
+    Note over WKR,FS: Cascade Evaluation with Early Termination
+    
+    WKR->>+EVAL: evaluate_program(mutated_code)
+    
+    EVAL->>FS: Write code to temp file
+    FS-->>EVAL: /tmp/prog_<uuid>.py
+    
+    EVAL->>+POOL: create_task(cascade_eval)
+    Note right of POOL: Semaphore-based<br/>concurrency control<br/>(max N parallel)
+    
+    POOL->>POOL: Acquire semaphore
+    
+    Note over S1: Stage 1: Quick Validation (~100ms)
+    POOL->>+S1: validate(code_path)
+    
+    S1->>S1: Check syntax (compile)
+    alt Syntax error
+        S1-->>POOL: FAIL: SyntaxError
+        POOL-->>-EVAL: EvaluationResult(passed=False)
+        EVAL-->>-WKR: Failed (stage 1)
+        Note right of WKR: Early termination<br/>saves 30-60s
+    end
+    
+    S1->>S1: Check imports exist
+    alt Missing imports
+        S1-->>POOL: FAIL: ImportError
+        POOL-->>EVAL: EvaluationResult(passed=False)
+        EVAL-->>WKR: Failed (stage 1)
+    end
+    
+    S1->>S1: Basic safety checks
+    Note right of S1: Safety checks:<br/>- No eval() calls<br/>- No os.system()<br/>- No dangerous imports
+    
+    alt Safety violation
+        S1-->>POOL: FAIL: SecurityError
+        POOL-->>EVAL: EvaluationResult(passed=False)
+        EVAL-->>WKR: Failed (stage 1)
+    end
+    
+    S1-->>-POOL: PASS (stage 1)
+    
+    Note over S2: Stage 2: Basic Testing (~1-5s)
+    POOL->>+S2: test(code_path)
+    
+    S2->>+EXEC: execute_subprocess(code, timeout=30s)
+    EXEC->>FS: Import user evaluator
+    EXEC->>USER: stage_1_evaluate(code_path)
+    Note right of USER: User-defined function:<br/>- Quick smoke tests<br/>- Correctness checks<br/>- Returns True/False
+    
+    alt User stage_1 fails
+        USER-->>EXEC: False or raises exception
+        EXEC-->>S2: ExecutionError(stderr, exit_code)
+        S2->>S2: Collect artifacts (stderr)
+        S2-->>-POOL: FAIL with artifacts
+        POOL-->>EVAL: EvaluationResult(passed=False, artifacts)
+        EVAL->>EVAL: Store artifacts in DB
+        EVAL-->>WKR: Failed (stage 2) with feedback
+        Note right of WKR: Artifacts included<br/>in next prompt
+    end
+    
+    USER-->>EXEC: True
+    EXEC-->>-S2: Success
+    S2-->>-POOL: PASS (stage 2)
+    
+    Note over S3: Stage 3: Comprehensive (~5-30s)
+    POOL->>+S3: benchmark(code_path)
+    
+    S3->>+EXEC: execute_subprocess(code, timeout=300s)
+    EXEC->>USER: evaluate(code_path)
+    Note right of USER: Full evaluation:<br/>- Performance benchmarks<br/>- Multiple test cases<br/>- Resource measurement<br/>- Returns metrics dict
+    
+    alt User evaluation raises exception
+        USER-->>EXEC: Exception (e.g., timeout)
+        EXEC-->>S3: ExecutionError(stderr, traceback)
+        S3->>S3: Collect full artifacts
+        S3-->>-POOL: FAIL with detailed artifacts
+        POOL-->>EVAL: EvaluationResult(passed=False, artifacts)
+        EVAL->>EVAL: Store artifacts
+        EVAL-->>WKR: Failed (stage 3) with full feedback
+    end
+    
+    USER-->>EXEC: {"score": 0.85, "time": 12.3, "custom_metric": 42}
+    EXEC-->>-S3: Metrics dictionary
+    
+    S3->>S3: Process metrics
+    S3->>S3: Collect artifacts (stdout, profiling)
+    
+    alt Optional: LLM feedback enabled
+        S3->>S3: Request LLM code quality assessment
+        Note right of S3: LLM reviews code for:<br/>- Readability<br/>- Maintainability<br/>- Potential bugs
+        S3->>S3: Add LLM feedback to artifacts
+    end
+    
+    S3-->>-POOL: SUCCESS with metrics + artifacts
+    
+    POOL->>POOL: Release semaphore
+    POOL-->>-EVAL: EvaluationResult(passed=True, metrics, artifacts)
+    
+    EVAL->>EVAL: Normalize metrics
+    Note right of EVAL: Normalization:<br/>- Extract numeric values<br/>- Compute combined_score<br/>- Compute feature dimensions
+    
+    EVAL->>FS: Clean up temp files
+    EVAL-->>-WKR: EvaluationResult(success, metrics, features)
+    
+    Note over WKR,FS: Cascade statistics:<br/>- Stage 1 fail rate: ~40%<br/>- Stage 2 fail rate: ~30%<br/>- Stage 3 fail rate: ~10%<br/>- Overall success: ~20%<br/><br/>Time savings from cascade:<br/>- Avg without: 35s per program<br/>- Avg with cascade: 8s per program<br/>- Speedup: 4.4x

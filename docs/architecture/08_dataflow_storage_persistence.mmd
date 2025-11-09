@@ -1,0 +1,117 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#616161','secondaryColor':'#43a047','tertiaryColor':'#e53935'}}}%%
+
+graph TB
+    %% Data Sources
+    USER_CODE[Initial Program<br/>User-provided code]
+    USER_EVAL[Evaluator Function<br/>User-defined tests]
+    CONFIG[Configuration<br/>YAML file]
+    
+    %% Core Data Stores
+    subgraph DataStores["Core Data Stores"]
+        DB[("Program Database<br/>MAP-Elites Grid<br/>JSON + Memory")]
+        ISLAND1[("Island 0<br/>Feature Grid")]
+        ISLAND2[("Island 1<br/>Feature Grid")]
+        ISLAND3[("Island N<br/>Feature Grid")]
+        BEST[("Best Program Tracker<br/>Absolute Best")]
+    end
+    
+    %% Intermediate Storage
+    subgraph TempStorage["Temporary Storage"]
+        TMPCODE["Temp Code Files<br/>/tmp/prog_*.py"]
+        ARTIFACTS["Artifact Store<br/>JSON + Files"]
+        PROMPTS["Prompt Cache<br/>Context History"]
+    end
+    
+    %% Persistent Storage
+    subgraph Persistence["Persistent Storage (File System)"]
+        CHECKPOINT["Checkpoint Directory<br/>checkpoint_N/"]
+        DBDUMP["database.json<br/>Full grid state"]
+        METADATA["metadata.json<br/>Config + stats"]
+        TRACES["traces/<br/>Evolution history"]
+        ARTIFACTS_DIR["artifacts/<br/>Large files"]
+        BEST_PROG["best_program.py<br/>Final result"]
+    end
+    
+    %% Data Flows - Initialization
+    USER_CODE -->|Load| DB
+    CONFIG -->|Initialize| DB
+    USER_EVAL -->|Reference| DB
+    
+    %% Data Flows - Database Organization
+    DB -->|Organize into| ISLAND1
+    DB -->|Organize into| ISLAND2
+    DB -->|Organize into| ISLAND3
+    DB -->|Track globally| BEST
+    
+    %% Data Flows - Iteration
+    ISLAND1 -->|Sample programs| PROMPTS
+    ISLAND2 -->|Sample programs| PROMPTS
+    ISLAND3 -->|Sample programs| PROMPTS
+    
+    ARTIFACTS -->|Include in| PROMPTS
+    PROMPTS -->|Generate with LLM| TMPCODE
+    
+    TMPCODE -->|Evaluate| USER_EVAL
+    USER_EVAL -->|Return metrics| ARTIFACTS
+    USER_EVAL -->|Return metrics| DB
+    
+    %% Data Flows - Storage
+    DB -->|Store programs| ISLAND1
+    DB -->|Store programs| ISLAND2
+    DB -->|Store programs| ISLAND3
+    
+    ARTIFACTS -->|Small (<10KB)| DB
+    ARTIFACTS -->|Large (>10KB)| ARTIFACTS_DIR
+    
+    %% Data Flows - Migration
+    ISLAND1 -.->|Ring topology<br/>migration| ISLAND2
+    ISLAND2 -.->|Ring topology<br/>migration| ISLAND3
+    ISLAND3 -.->|Ring topology<br/>migration| ISLAND1
+    
+    %% Data Flows - Best Tracking
+    ISLAND1 -->|Update if better| BEST
+    ISLAND2 -->|Update if better| BEST
+    ISLAND3 -->|Update if better| BEST
+    
+    %% Data Flows - Checkpointing
+    DB -->|Serialize| DBDUMP
+    CONFIG -->|Save| METADATA
+    BEST -->|Export| BEST_PROG
+    DB -->|Extract lineage| TRACES
+    
+    DBDUMP -->|Write to| CHECKPOINT
+    METADATA -->|Write to| CHECKPOINT
+    TRACES -->|Write to| CHECKPOINT
+    ARTIFACTS_DIR -->|Copy to| CHECKPOINT
+    
+    %% Data Flows - Resume
+    CHECKPOINT -.->|Load from| DB
+    CHECKPOINT -.->|Load from| CONFIG
+    CHECKPOINT -.->|Load from| BEST
+    
+    %% Styling
+    classDef sourceClass fill:#4fc3f7,stroke:#01579b,stroke-width:2px,color:#000
+    classDef storeClass fill:#ffa726,stroke:#e65100,stroke-width:3px,color:#000
+    classDef islandClass fill:#66bb6a,stroke:#2e7d32,stroke-width:2px,color:#fff
+    classDef tempClass fill:#ffeb3b,stroke:#f57f17,stroke-width:1px,color:#000
+    classDef persistClass fill:#9c27b0,stroke:#4a148c,stroke-width:2px,color:#fff
+    
+    class USER_CODE,USER_EVAL,CONFIG sourceClass
+    class DB,BEST storeClass
+    class ISLAND1,ISLAND2,ISLAND3 islandClass
+    class TMPCODE,ARTIFACTS,PROMPTS tempClass
+    class CHECKPOINT,DBDUMP,METADATA,TRACES,ARTIFACTS_DIR,BEST_PROG persistClass
+
+    %% Data Sizes
+    subgraph Legend["Data Volume Estimates"]
+        L1["Program: ~1-10 KB code"]
+        L2["Database: 100-10,000 programs<br/>Total: 1-100 MB"]
+        L3["Checkpoint: DB + artifacts<br/>Total: 10-500 MB"]
+        L4["Traces: JSONL lineage<br/>Total: 1-50 MB"]
+        L5["Artifacts: Varies<br/>0 KB - 10 MB per program"]
+    end
+
+    %% Metadata
+    %% Commit: 1c88c4a3df6032aae4052bb543f44ece15f03901
+    %% Generated: 2025-11-09
+    %% Description: End-to-end dataflow showing storage, caching, and persistence

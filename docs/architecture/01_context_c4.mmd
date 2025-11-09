@@ -1,0 +1,51 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#616161','secondaryColor':'#43a047','tertiaryColor':'#e53935'}}}%%
+
+graph TB
+    %% System boundary
+    subgraph OpenEvolve["OpenEvolve System"]
+        OE[OpenEvolve<br/>Evolutionary Coding Agent<br/>Optimizes code through<br/>LLM-driven evolution]
+    end
+
+    %% Users
+    USER_DEV[Developer/Researcher<br/>Person<br/>Writes initial programs<br/>and evaluators]
+    USER_SCIENTIST[Data Scientist<br/>Person<br/>Optimizes algorithms<br/>for experiments]
+    USER_ENG[ML Engineer<br/>Person<br/>Discovers optimized<br/>GPU kernels]
+
+    %% External Systems
+    LLM_API[LLM API Services<br/>External System<br/>OpenAI, Google Gemini,<br/>Ollama, OptiLLM]
+    EMBED_API[Embedding API<br/>External System<br/>OpenAI Embeddings<br/>for novelty detection]
+    FS[File System<br/>External System<br/>Stores checkpoints,<br/>programs, artifacts]
+    DOCKER[Docker Registry<br/>External System<br/>Hosts container images<br/>ghcr.io/codelion]
+
+    %% Relationships - Users to System
+    USER_DEV -->|Provides initial program,<br/>evaluator, configuration| OE
+    USER_SCIENTIST -->|Runs evolution experiments,<br/>analyzes results| OE
+    USER_ENG -->|Optimizes GPU kernels,<br/>benchmarks performance| OE
+    
+    %% Relationships - System to External
+    OE -->|Generates code mutations<br/>via API calls| LLM_API
+    OE -->|Computes embeddings<br/>for novelty filtering| EMBED_API
+    OE -->|Persists checkpoints,<br/>loads/saves state| FS
+    OE -->|Pulls container images<br/>for deployment| DOCKER
+    
+    %% Return relationships
+    LLM_API -->|Returns evolved code<br/>and suggestions| OE
+    EMBED_API -->|Returns embedding vectors<br/>(768-dim)| OE
+    FS -->|Provides checkpoint data,<br/>program history| OE
+    OE -->|Delivers optimized programs,<br/>evolution traces,<br/>visualizations| USER_DEV
+    OE -->|Provides experiment results,<br/>performance metrics| USER_SCIENTIST
+    OE -->|Returns optimized kernels,<br/>benchmark data| USER_ENG
+
+    %% Styling
+    classDef userClass fill:#4fc3f7,stroke:#01579b,stroke-width:2px,color:#000
+    classDef systemClass fill:#1e88e5,stroke:#0d47a1,stroke-width:3px,color:#fff
+    classDef externalClass fill:#9e9e9e,stroke:#424242,stroke-width:2px,color:#fff
+    
+    class USER_DEV,USER_SCIENTIST,USER_ENG userClass
+    class OE systemClass
+    class LLM_API,EMBED_API,FS,DOCKER externalClass
+
+    %% Metadata
+    %% Commit: 1c88c4a3df6032aae4052bb543f44ece15f03901
+    %% Generated: 2025-11-09
+    %% Description: C4 Context diagram showing OpenEvolve system boundaries, users, and external dependencies
