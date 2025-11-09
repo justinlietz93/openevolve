@@ -1,0 +1,69 @@
+{
+  "$schema": "vdm://schemas/gate.v1.json",
+  "name": "vdm-fft-bench",
+  "version": "1.0.0",
+  "description": "FFT-like transform with property oracles",
+  "hard_gates": [
+    {
+      "metric": "unit_pass_rate",
+      "op": ">=",
+      "value": 1.0
+    },
+    {
+      "metric": "holdout_pass",
+      "op": "==",
+      "value": 1.0
+    },
+    {
+      "metric": "mutation_score",
+      "op": ">=",
+      "value": 0.85
+    },
+    {
+      "metric": "wall_time_ms",
+      "op": "<=",
+      "value": 500
+    },
+    {
+      "metric": "max_rss_mb",
+      "op": "<=",
+      "value": 256
+    },
+    {
+      "metric": "loc_per_file_max",
+      "op": "<=",
+      "value": 500
+    }
+  ],
+  "soft_objectives": [
+    {
+      "metric": "avg_latency_ms",
+      "goal": "min"
+    },
+    {
+      "metric": "cyclomatic_mean",
+      "goal": "min"
+    }
+  ],
+  "hidden_holdouts": {
+    "seed_count": 100,
+    "distribution": "private"
+  },
+  "allowlists": {
+    "languages": ["python", "cpp", "rust"],
+    "libs": {
+      "python": ["numpy==1.26.4", "scipy==1.11.4"],
+      "cpp": ["eigen3"],
+      "rust": ["ndarray=0.15"]
+    },
+    "syscalls": [
+      "read",
+      "write",
+      "fstat",
+      "mmap",
+      "munmap",
+      "brk",
+      "exit"
+    ]
+  }
+}
