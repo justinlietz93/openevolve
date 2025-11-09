@@ -34,9 +34,7 @@ class AgentPort(ABC):
         pass
 
     @abstractmethod
-    async def generate_from_spec(
-        self, specification: str, language: str = "python"
-    ) -> Candidate:
+    async def generate_from_spec(self, specification: str, language: str = "python") -> Candidate:
         """
         Generate initial candidate from specification
 

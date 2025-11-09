@@ -26,9 +26,7 @@ class Selector:
         self.store = store
         self.config = config
 
-    async def select_for_mutation(
-        self, n: int, gate_passed: bool = True
-    ) -> List[Candidate]:
+    async def select_for_mutation(self, n: int, gate_passed: bool = True) -> List[Candidate]:
         """
         Select N candidates for mutation inspiration
 

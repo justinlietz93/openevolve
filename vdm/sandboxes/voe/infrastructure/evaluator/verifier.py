@@ -27,9 +27,7 @@ class Verifier:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
 
-    async def run_tests(
-        self, candidate: Candidate, test_spec: Dict[str, Any]
-    ) -> Dict[str, float]:
+    async def run_tests(self, candidate: Candidate, test_spec: Dict[str, Any]) -> Dict[str, float]:
         """
         Execute tests and return aggregate metrics
 
@@ -77,9 +75,7 @@ class Verifier:
 
         return results
 
-    async def measure_performance(
-        self, candidate: Candidate
-    ) -> Dict[str, float]:
+    async def measure_performance(self, candidate: Candidate) -> Dict[str, float]:
         """
         Measure resource usage
 

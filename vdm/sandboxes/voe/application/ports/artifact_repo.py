@@ -30,9 +30,7 @@ class ArtifactRepoPort(ABC):
         pass
 
     @abstractmethod
-    async def get_artifact(
-        self, candidate_id: str, artifact_type: str
-    ) -> Optional[bytes]:
+    async def get_artifact(self, candidate_id: str, artifact_type: str) -> Optional[bytes]:
         """
         Retrieve an artifact
 

@@ -19,9 +19,7 @@ class EvaluatorPort(ABC):
     """
 
     @abstractmethod
-    async def evaluate(
-        self, candidate: Candidate, gate_spec: Dict[str, Any]
-    ) -> Scorecard:
+    async def evaluate(self, candidate: Candidate, gate_spec: Dict[str, Any]) -> Scorecard:
         """
         Evaluate candidate and return blinded scorecard
 
@@ -35,9 +33,7 @@ class EvaluatorPort(ABC):
         pass
 
     @abstractmethod
-    async def evaluate_holdouts(
-        self, candidate: Candidate, gate_spec: Dict[str, Any]
-    ) -> Scorecard:
+    async def evaluate_holdouts(self, candidate: Candidate, gate_spec: Dict[str, Any]) -> Scorecard:
         """
         Evaluate candidate on hidden holdout set
 
@@ -51,9 +47,7 @@ class EvaluatorPort(ABC):
         pass
 
     @abstractmethod
-    async def cold_replay(
-        self, candidate: Candidate, gate_spec: Dict[str, Any]
-    ) -> Verdict:
+    async def cold_replay(self, candidate: Candidate, gate_spec: Dict[str, Any]) -> Verdict:
         """
         Reproduce evaluation in fresh container
 

@@ -47,9 +47,7 @@ class ProgramStorePort(ABC):
         pass
 
     @abstractmethod
-    async def get_top_candidates(
-        self, n: int, gate_passed: bool = True
-    ) -> List[Candidate]:
+    async def get_top_candidates(self, n: int, gate_passed: bool = True) -> List[Candidate]:
         """
         Retrieve top N candidates
 

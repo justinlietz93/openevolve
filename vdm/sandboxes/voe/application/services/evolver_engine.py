@@ -52,9 +52,7 @@ class EvolverEngine:
         self.selector = Selector(store, config.get("selector", {}))
         self.config = config
 
-    async def run_iteration(
-        self, gate_spec: Dict[str, Any], generation: int
-    ) -> Optional[Verdict]:
+    async def run_iteration(self, gate_spec: Dict[str, Any], generation: int) -> Optional[Verdict]:
         """
         Run single evolution iteration
 

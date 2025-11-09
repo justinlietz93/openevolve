@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""
+VOE CLI stub - demonstrates command structure
+
+Full implementation would connect to VOE services
+"""
+
+import argparse
+import sys
+
+
+def cmd_submit(args):
+    """Submit a candidate for evaluation"""
+    print(f"[VOE] Submitting candidate from: {args.path}")
+    print(f"[VOE] Candidate ID: mock-uuid-123")
+    print(f"[VOE] Status: SUBMITTED")
+    return 0
+
+
+def cmd_run(args):
+    """Run evaluation on a candidate"""
+    print(f"[VOE] Running evaluation for candidate: {args.candidate_id}")
+    print(f"[VOE] Gate spec: {args.gate}")
+    print(f"[VOE] Status: BUILDING → TESTING → HOLDOUT → REPLAY")
+    print(f"[VOE] Result: PASSED (mock)")
+    return 0
+
+
+def cmd_review(args):
+    """Review candidate results"""
+    print(f"[VOE] Reviewing candidate: {args.candidate_id}")
+    print(f"[VOE] Opening receipts:")
+    print(f"  - gates.verdict.json")
+    print(f"  - provenance.json")
+    print(f"  - performance.json")
+    return 0
+
+
+def cmd_export(args):
+    """Export candidate bundle"""
+    print(f"[VOE] Exporting candidate: {args.candidate_id}")
+    if args.bundle:
+        print(f"[VOE] Creating bundle: {args.candidate_id}.tar.gz")
+    print(f"[VOE] Export complete")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="VOE - VDM-Optimized Openevolve CLI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  voe submit path/to/code.py
+  voe run <candidate-id> --gate gate_spec.json
+  voe review <candidate-id>
+  voe export <candidate-id> --bundle
+        """,
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Submit command
+    submit = subparsers.add_parser("submit", help="Submit candidate for evaluation")
+    submit.add_argument("path", help="Path to candidate code")
+    submit.set_defaults(func=cmd_submit)
+
+    # Run command
+    run = subparsers.add_parser("run", help="Run evaluation")
+    run.add_argument("candidate_id", help="Candidate UUID")
+    run.add_argument("--gate", required=True, help="Path to gate specification")
+    run.set_defaults(func=cmd_run)
+
+    # Review command
+    review = subparsers.add_parser("review", help="Review candidate results")
+    review.add_argument("candidate_id", help="Candidate UUID")
+    review.set_defaults(func=cmd_review)
+
+    # Export command
+    export = subparsers.add_parser("export", help="Export candidate bundle")
+    export.add_argument("candidate_id", help="Candidate UUID")
+    export.add_argument("--bundle", action="store_true", help="Create tarball bundle")
+    export.set_defaults(func=cmd_export)
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        return 1
+
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

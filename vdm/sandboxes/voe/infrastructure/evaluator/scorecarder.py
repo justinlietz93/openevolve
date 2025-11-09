@@ -19,9 +19,7 @@ class Scorecarder:
     def __init__(self, verifier: Verifier):
         self.verifier = verifier
 
-    def evaluate_gates(
-        self, gates: List[Gate], metrics: Dict[str, float]
-    ) -> GateVerdict:
+    def evaluate_gates(self, gates: List[Gate], metrics: Dict[str, float]) -> GateVerdict:
         """
         Evaluate all gates against metrics
 
@@ -53,9 +51,7 @@ class Scorecarder:
         all_passed = len(violations) == 0
         return GateVerdict(passed=all_passed, gate_results=results, violations=violations)
 
-    def generate_hints(
-        self, metrics: Dict[str, float], gate_verdict: GateVerdict
-    ) -> List[str]:
+    def generate_hints(self, metrics: Dict[str, float], gate_verdict: GateVerdict) -> List[str]:
         """
         Generate advisory hints for improvement
 
