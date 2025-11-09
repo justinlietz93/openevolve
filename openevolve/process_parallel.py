@@ -288,22 +288,17 @@ class ProcessParallelController:
 
         # Number of worker processes
         self.num_workers = config.evaluator.parallel_evaluations
-
-        # Worker-to-island pinning for true island isolation
         self.num_islands = config.database.num_islands
-        self.worker_island_map = {}
-
-        # Distribute workers across islands using modulo
-        for worker_id in range(self.num_workers):
-            island_id = worker_id % self.num_islands
-            self.worker_island_map[worker_id] = island_id
 
         logger.info(f"Initialized process parallel controller with {self.num_workers} workers")
-        logger.info(f"Worker-to-island mapping: {self.worker_island_map}")
 
     def _serialize_config(self, config: Config) -> dict:
         """Serialize config object to a dictionary that can be pickled"""
         # Manual serialization to handle nested objects properly
+
+        # The asdict() call itself triggers the deepcopy which tries to serialize novelty_llm. Remove it first.
+        config.database.novelty_llm = None
+        
         return {
             "llm": {
                 "models": [asdict(m) for m in config.llm.models],
@@ -431,7 +426,7 @@ class ProcessParallelController:
         completed_iterations = 0
 
         # Island management
-        programs_per_island = max(1, max_iterations // (self.config.database.num_islands * 10))
+        programs_per_island = self.config.database.programs_per_island or max(1, max_iterations // (self.config.database.num_islands * 10))
         current_island_counter = 0
 
         # Early stopping tracking
@@ -595,16 +590,12 @@ class ProcessParallelController:
 
                     # Check target score
                     if target_score is not None and child_program.metrics:
-                        numeric_metrics = [
-                            v for v in child_program.metrics.values() if isinstance(v, (int, float))
-                        ]
-                        if numeric_metrics:
-                            avg_score = sum(numeric_metrics) / len(numeric_metrics)
-                            if avg_score >= target_score:
-                                logger.info(
-                                    f"Target score {target_score} reached at iteration {completed_iteration}"
-                                )
-                                break
+                        if ('combined_score' in child_program.metrics and
+                            child_program.metrics['combined_score'] >= target_score):
+                            logger.info(
+                                f"Target score {target_score} reached at iteration {completed_iteration}"
+                            )
+                            break
 
                     # Check early stopping
                     if early_stopping_enabled and child_program.metrics:

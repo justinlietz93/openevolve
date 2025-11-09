@@ -5,9 +5,12 @@ Configuration handling for OpenEvolve
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 import yaml
+
+if TYPE_CHECKING:
+    from openevolve.llm.base import LLMInterface
 
 
 @dataclass
@@ -245,6 +248,7 @@ class DatabaseConfig:
     population_size: int = 1000
     archive_size: int = 100
     num_islands: int = 5
+    programs_per_island: Optional[int] = None
 
     # Selection parameters
     elite_selection_ratio: float = 0.1
@@ -283,6 +287,9 @@ class DatabaseConfig:
     cleanup_old_artifacts: bool = True
     artifact_retention_days: int = 30
 
+    novelty_llm: Optional["LLMInterface"] = None
+    embedding_model: Optional[str] = None
+    similarity_threshold: float = 0.99
 
 @dataclass
 class EvaluatorConfig:
