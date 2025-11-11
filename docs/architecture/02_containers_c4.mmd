@@ -1,0 +1,115 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#616161','secondaryColor':'#43a047','tertiaryColor':'#e53935'}}}%%
+
+graph TB
+    %% Users
+    USER[User<br/>Developer/Researcher/Engineer]
+
+    %% OpenEvolve System Boundary
+    subgraph OpenEvolve["OpenEvolve System"]
+        
+        %% CLI/API Layer
+        CLI[CLI Application<br/>Python<br/>openevolve-run.py<br/>Command-line interface]
+        API[Library API<br/>Python<br/>openevolve.api<br/>Programmatic interface]
+        
+        %% Core Controller
+        CTRL[Controller<br/>Python<br/>openevolve.controller<br/>Orchestrates evolution loop,<br/>manages lifecycle]
+        
+        %% Evolution Components
+        DB[Program Database<br/>Python + JSON<br/>openevolve.database<br/>MAP-Elites islands,<br/>feature grids, migrations]
+        
+        EVAL[Evaluator<br/>Python + Subprocess<br/>openevolve.evaluator<br/>Cascade evaluation,<br/>parallel execution]
+        
+        LLM[LLM Ensemble<br/>Python + HTTP<br/>openevolve.llm.ensemble<br/>Multi-model generation,<br/>retry logic, fallbacks]
+        
+        PROMPT[Prompt Sampler<br/>Python<br/>openevolve.prompt.sampler<br/>Builds prompts from<br/>templates + context]
+        
+        %% Process Management
+        PROC[Process Pool<br/>Python multiprocessing<br/>openevolve.process_parallel<br/>Parallel iteration workers,<br/>DB snapshots]
+        
+        %% Supporting Services
+        EMBED[Embedding Client<br/>Python + HTTP<br/>openevolve.embedding<br/>Novelty detection,<br/>diversity filtering]
+        
+        TRACE[Evolution Tracer<br/>Python<br/>openevolve.evolution_trace<br/>Lineage tracking,<br/>export utilities]
+        
+        VIZ[Visualizer<br/>Flask + JavaScript<br/>scripts/visualizer.py<br/>Web-based tree viewer,<br/>interactive graphs]
+        
+        %% Storage
+        CHECKPOINT[Checkpoint Storage<br/>File System<br/>JSON + Code Files<br/>Full system state,<br/>artifacts, metadata]
+    end
+    
+    %% External Systems
+    LLM_EXT[LLM API<br/>OpenAI/Gemini/etc]
+    EMBED_EXT[Embedding API<br/>OpenAI Embeddings]
+    FS[File System<br/>Local/Network Storage]
+
+    %% User Interactions
+    USER -->|Executes with config| CLI
+    USER -->|Calls run_evolution(),<br/>evolve_function()| API
+    USER -->|Views evolution<br/>in browser| VIZ
+    
+    %% CLI/API to Controller
+    CLI -->|Initializes| CTRL
+    API -->|Initializes| CTRL
+    
+    %% Controller Orchestration
+    CTRL -->|Manages iterations| PROC
+    CTRL -->|Stores/retrieves programs| DB
+    CTRL -->|Tracks lineage| TRACE
+    CTRL -->|Persists state| CHECKPOINT
+    
+    %% Process Pool Operations
+    PROC -->|Executes iteration workers| PROC
+    PROC -->|Samples programs| DB
+    PROC -->|Generates mutations| LLM
+    PROC -->|Evaluates programs| EVAL
+    PROC -->|Stores results| DB
+    
+    %% LLM Generation Flow
+    LLM -->|Builds context| PROMPT
+    LLM -->|Calls API| LLM_EXT
+    PROMPT -->|Retrieves templates| PROMPT
+    PROMPT -->|Fetches inspiration programs| DB
+    
+    %% Evaluation Flow
+    EVAL -->|Executes user code| EVAL
+    EVAL -->|Stores artifacts| DB
+    EVAL -->|Returns metrics| PROC
+    
+    %% Embedding Flow
+    DB -->|Computes novelty| EMBED
+    EMBED -->|Gets embeddings| EMBED_EXT
+    
+    %% Tracing
+    TRACE -->|Extracts history| DB
+    TRACE -->|Exports traces| CHECKPOINT
+    
+    %% Visualization
+    VIZ -->|Loads checkpoints| CHECKPOINT
+    VIZ -->|Reads program history| DB
+    VIZ -->|Serves to browser| USER
+    
+    %% External API Calls
+    LLM_EXT -->|Returns generated code| LLM
+    EMBED_EXT -->|Returns vectors| EMBED
+    
+    %% File System Operations
+    CHECKPOINT -->|Reads/writes| FS
+    FS -->|Provides persistence| CHECKPOINT
+
+    %% Styling
+    classDef userClass fill:#4fc3f7,stroke:#01579b,stroke-width:2px,color:#000
+    classDef coreClass fill:#1e88e5,stroke:#0d47a1,stroke-width:2px,color:#fff
+    classDef storageClass fill:#ffa726,stroke:#e65100,stroke-width:2px,color:#000
+    classDef externalClass fill:#9e9e9e,stroke:#424242,stroke-width:2px,color:#fff
+    classDef processClass fill:#66bb6a,stroke:#2e7d32,stroke-width:2px,color:#fff
+    
+    class USER userClass
+    class CLI,API,CTRL,LLM,PROMPT,EVAL coreClass
+    class DB,CHECKPOINT storageClass
+    class LLM_EXT,EMBED_EXT,FS externalClass
+    class PROC,EMBED,TRACE,VIZ processClass
+
+    %% Metadata
+    %% Commit: 1c88c4a3df6032aae4052bb543f44ece15f03901
+    %% Generated: 2025-11-09
+    %% Description: C4 Container diagram showing OpenEvolve's internal architecture and component interactions

@@ -1,0 +1,99 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#616161','actorBorder':'#0d47a1','actorBkg':'#90caf9','actorTextColor':'#000','signalColor':'#424242','signalTextColor':'#000','labelBoxBkgColor':'#e3f2fd','labelBoxBorderColor':'#1976d2','labelTextColor':'#000','loopTextColor':'#000','noteBorderColor':'#ff9800','noteBkgColor':'#fff3e0','noteTextColor':'#000'}}}%%
+
+sequenceDiagram
+    autonumber
+    
+    actor User as User/CLI
+    participant CTRL as Controller
+    participant PROC as ProcessPool
+    participant WKR as Worker Process
+    participant DB as ProgramDatabase
+    participant LLM as LLM Ensemble
+    participant EVAL as Evaluator
+    participant FS as File System
+    
+    Note over User,FS: Main Evolution Loop - Single Iteration
+    
+    User->>+CTRL: run(iterations=1000)
+    CTRL->>CTRL: Load initial program
+    CTRL->>DB: Initialize database
+    DB-->>CTRL: Database ready
+    
+    loop For each iteration (1-1000)
+        CTRL->>+PROC: run_iteration_parallel(iteration_num)
+        
+        Note over PROC,WKR: Process Pool launches worker
+        PROC->>PROC: Serialize(config, db_snapshot)
+        PROC->>+WKR: spawn_worker(serialized_data)
+        
+        Note over WKR,LLM: Worker executes iteration
+        WKR->>WKR: Deserialize config & DB
+        
+        WKR->>DB: sample_programs(strategy)
+        Note right of DB: Samples from islands:<br/>- Elite programs (top 20%)<br/>- Diverse programs (spread)<br/>- Exploratory (random)
+        DB-->>WKR: [parent_program, inspiration_programs]
+        
+        WKR->>LLM: generate_mutation(parent, inspiration)
+        
+        Note over LLM: LLM Generation Flow
+        LLM->>LLM: Build prompt with context
+        LLM->>LLM: Select model (weighted)
+        
+        alt Primary model succeeds
+            LLM->>LLM: Call OpenAI API
+            LLM-->>WKR: mutated_code
+        else Primary model fails
+            LLM->>LLM: Retry with backoff (3x)
+            alt Retries exhausted
+                LLM->>LLM: Fallback to next model
+                LLM-->>WKR: mutated_code (fallback)
+            end
+        end
+        
+        WKR->>EVAL: evaluate_program(mutated_code)
+        
+        Note over EVAL: Cascade Evaluation
+        EVAL->>EVAL: Stage 1: Quick validation
+        alt Stage 1 fails
+            EVAL-->>WKR: Failed (early termination)
+        else Stage 1 passes
+            EVAL->>EVAL: Stage 2: Basic testing
+            alt Stage 2 fails
+                EVAL-->>WKR: Failed (early termination)
+            else Stage 2 passes
+                EVAL->>EVAL: Stage 3: Comprehensive
+                EVAL-->>WKR: Success with metrics
+            end
+        end
+        
+        alt Evaluation succeeded
+            WKR->>DB: add_program(code, metrics)
+            Note right of DB: MAP-Elites insertion:<br/>1. Compute features<br/>2. Find grid cell<br/>3. Compare with existing<br/>4. Keep best
+            DB-->>WKR: Stored (yes/no)
+        end
+        
+        WKR-->>-PROC: Iteration result
+        PROC->>CTRL: Merge results into main DB
+        CTRL->>DB: update_with_results()
+        
+        alt Migration time (every N generations)
+            CTRL->>DB: trigger_migration()
+            Note right of DB: Ring topology:<br/>Island 0 → Island 1<br/>Island 1 → Island 2<br/>...
+            DB->>DB: Migrate elite programs
+        end
+        
+        alt Checkpoint interval (every 50 iters)
+            CTRL->>FS: save_checkpoint(db, config, metadata)
+            FS-->>CTRL: Checkpoint saved
+        end
+        
+        CTRL->>CTRL: Update best program tracker
+        CTRL-->>-PROC: Continue to next iteration
+        
+        Note over CTRL: Log progress:<br/>- Best score<br/>- Improvements<br/>- Grid coverage
+    end
+    
+    CTRL->>FS: Save final results
+    CTRL-->>-User: EvolutionResult(best_program, traces)
+    
+    Note over User,FS: Typical timing:<br/>- LLM generation: 2-10s<br/>- Evaluation: 1-30s<br/>- Database ops: <100ms<br/>- Total per iteration: 3-40s
