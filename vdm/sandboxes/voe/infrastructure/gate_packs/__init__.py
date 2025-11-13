@@ -17,6 +17,13 @@ from .a8_hierarchy_pack import A8HierarchyGatePack
 from .frw_cosmology_pack import FRWCosmologyGatePack
 from .quantum_echoes_pack import QuantumEchoesGatePack
 
+# Additional domain packs (full coverage)
+from .wave_flux_pack import WaveFluxGatePack
+from .tachyonic_tube_pack import TachyonicTubeGatePack
+from .dark_photon_portal_pack import DarkPhotonPortalGatePack
+from .quantum_gravity_bridge_pack import QuantumGravityBridgeGatePack
+from .intelligence_substrate_pack import IntelligenceSubstrateGatePack
+
 __all__ = [
     # Core numerics
     "MetriplecticGatePack",
@@ -29,4 +36,10 @@ __all__ = [
     "A8HierarchyGatePack",
     "FRWCosmologyGatePack",
     "QuantumEchoesGatePack",
+    # Additional domains (full coverage)
+    "WaveFluxGatePack",
+    "TachyonicTubeGatePack",
+    "DarkPhotonPortalGatePack",
+    "QuantumGravityBridgeGatePack",
+    "IntelligenceSubstrateGatePack",
 ]
