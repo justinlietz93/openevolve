@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "vdm://schemas/scorecard.v1.json",
+  "title": "VDM Scorecard Schema",
+  "description": "Blinded evaluation scorecard with aggregate metrics only",
+  "type": "object",
+  "required": ["candidate_id", "hard_gates", "metrics"],
+  "properties": {
+    "candidate_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique candidate identifier"
+    },
+    "hard_gates": {
+      "type": "object",
+      "required": ["pass"],
+      "properties": {
+        "pass": {
+          "type": "boolean",
+          "description": "Whether all hard gates passed"
+        },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Names of failed gates"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Aggregate performance metrics",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "properties": {
+      "type": "object",
+      "description": "Property test results (pass/fail counts only)",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "violations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "passed": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "hints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Advisory improvement suggestions"
+    },
+    "error_budget": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Remaining evaluation budget"
+    }
+  }
+}

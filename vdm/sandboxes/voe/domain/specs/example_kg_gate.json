@@ -1,0 +1,82 @@
+{
+  "$schema": "vdm://schemas/gate.v1.json",
+  "name": "vdm-klein-gordon-validation",
+  "version": "1.0.0",
+  "description": "Klein-Gordon J-only hyperbolic dynamics validation",
+  "hard_gates": [
+    {
+      "metric": "kg_dispersion_r2",
+      "op": ">=",
+      "value": 0.999,
+      "description": "Dispersion relation fit quality: R² ≥ 0.999"
+    },
+    {
+      "metric": "kg_dispersion_slope_error",
+      "op": "<=",
+      "value": 0.002,
+      "description": "Dispersion slope error: |slope - 1.0| ≤ 0.002"
+    },
+    {
+      "metric": "kg_dispersion_intercept_error",
+      "op": "<=",
+      "value": 0.01,
+      "description": "Dispersion intercept error: |m²_measured - m²| ≤ 0.01"
+    },
+    {
+      "metric": "kg_front_speed",
+      "op": "<=",
+      "value": 1.02,
+      "description": "Causal cone: v_front ≤ c(1+0.02)"
+    },
+    {
+      "metric": "kg_cone_r2",
+      "op": ">=",
+      "value": 0.999,
+      "description": "Causal cone fit quality: R² ≥ 0.999"
+    },
+    {
+      "metric": "kg_energy_osc_slope",
+      "op": ">=",
+      "value": 1.95,
+      "description": "Energy oscillation slope lower bound: p ≥ 1.95"
+    },
+    {
+      "metric": "kg_energy_osc_slope",
+      "op": "<=",
+      "value": 2.05,
+      "description": "Energy oscillation slope upper bound: p ≤ 2.05"
+    },
+    {
+      "metric": "kg_energy_osc_r2",
+      "op": ">=",
+      "value": 0.999,
+      "description": "Energy oscillation fit quality: R² ≥ 0.999"
+    },
+    {
+      "metric": "kg_reversal_sup_norm",
+      "op": "<=",
+      "value": 1e-12,
+      "description": "Time-reversal error: ||Δ||_∞ ≤ 1e-12"
+    },
+    {
+      "metric": "kg_rel_amp_fine",
+      "op": "<=",
+      "value": 0.0001,
+      "description": "Fine-step amplitude: (A_H/H̄) ≤ 1e-4"
+    }
+  ],
+  "soft_objectives": [
+    {
+      "metric": "convergence_order",
+      "goal": "max",
+      "description": "Numerical convergence order"
+    }
+  ],
+  "allowlists": {
+    "languages": ["python", "cpp"],
+    "libs": {
+      "python": ["numpy==1.26.4", "scipy==1.11.4"],
+      "cpp": ["eigen3"]
+    }
+  }
+}
