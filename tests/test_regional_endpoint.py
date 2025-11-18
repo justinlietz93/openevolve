@@ -18,10 +18,15 @@ def test_endpoint_detection():
         ("https://apac.api.openai.com/v1", "o3-mini", True, "APAC endpoint with o3-mini"),
         ("https://eu.api.openai.com/v1", "gpt-4", False, "EU endpoint with gpt-4"),
         ("https://api.openai.com/v1", "gpt-3.5-turbo", False, "US endpoint with gpt-3.5"),
-        ("https://azure.openai.com/", "o1-mini", False, "Azure endpoint (not OpenAI)"),
-        ("https://fake.com/api.openai.com", "o1-mini", False, "Fake endpoint with o1"),
-        (None, "o1-mini", False, "None endpoint"),
-        ("", "o1-mini", False, "Empty endpoint"),
+        ("https://azure.openai.com/", "o1-mini", True, "Azure endpoint with reasoning model"),
+        ("https://my-resource.openai.azure.com/", "gpt-5", True, "Azure with gpt-5"),
+        ("http://localhost:8000/v1", "o1-mini", True, "OptiLLM proxy with o1-mini"),
+        ("http://localhost:8000/v1", "gpt-5-nano", True, "OptiLLM proxy with gpt-5-nano"),
+        ("http://localhost:8000/v1", "gpt-4", False, "OptiLLM proxy with gpt-4"),
+        ("https://openrouter.ai/api/v1", "o3-mini", True, "OpenRouter with reasoning model"),
+        ("https://fake.com/api.openai.com", "o1-mini", True, "Any endpoint with reasoning model"),
+        (None, "o1-mini", True, "None endpoint with reasoning model"),
+        ("", "o1-mini", True, "Empty endpoint with reasoning model"),
         ("https://eu.api.openai.com/v1", "O1-MINI", True, "EU with uppercase model"),
         ("HTTPS://EU.API.OPENAI.COM/v1", "o1-mini", True, "Uppercase URL"),
     ]
@@ -33,23 +38,11 @@ def test_endpoint_detection():
     failed = 0
     
     for api_base, model, expected_result, description in test_cases:
-        # This is the exact logic from your fixed code
+        # This is the exact logic from the fixed code
         model_lower = str(model).lower()
-        api_base_lower = (api_base or "").lower()
-        
-        is_openai_api = (
-            api_base_lower.startswith("https://api.openai.com")
-            or api_base_lower.startswith("https://eu.api.openai.com")
-            or api_base_lower.startswith("https://apac.api.openai.com")
-            or api_base_lower.startswith("http://api.openai.com")
-            or api_base_lower.startswith("http://eu.api.openai.com")
-            or api_base_lower.startswith("http://apac.api.openai.com")
-        )
-        
-        is_openai_reasoning_model = (
-            is_openai_api
-            and model_lower.startswith(OPENAI_REASONING_MODEL_PREFIXES)
-        )
+
+        # Model-pattern based detection (works for all endpoints)
+        is_openai_reasoning_model = model_lower.startswith(OPENAI_REASONING_MODEL_PREFIXES)
         
         # Determine which parameter would be used
         param_used = "max_completion_tokens" if is_openai_reasoning_model else "max_tokens"
@@ -66,7 +59,6 @@ def test_endpoint_detection():
         print(f"\n{status} | {description}")
         print(f"  API Base: {api_base}")
         print(f"  Model: {model}")
-        print(f"  is_openai_api: {is_openai_api}")
         print(f"  is_reasoning_model: {is_openai_reasoning_model}")
         print(f"  Parameter used: {param_used}")
         print(f"  Expected: {expected_param}")
