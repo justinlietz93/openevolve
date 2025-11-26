@@ -40,7 +40,10 @@ class EmbeddingClient:
     
     def _get_client_model(self, model_name: str) -> tuple[openai.OpenAI, str]:
         if model_name in OPENAI_EMBEDDING_MODELS:
-            client = openai.OpenAI()
+            # Use OPENAI_EMBEDDING_API_KEY if set, otherwise fall back to OPENAI_API_KEY
+            # This allows users to use OpenRouter for LLMs while using OpenAI for embeddings
+            embedding_api_key = os.getenv("OPENAI_EMBEDDING_API_KEY") or os.getenv("OPENAI_API_KEY")
+            client = openai.OpenAI(api_key=embedding_api_key)
             model_to_use = model_name
         elif model_name in AZURE_EMBEDDING_MODELS:
             # get rid of the azure- prefix
