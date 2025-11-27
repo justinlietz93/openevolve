@@ -16,15 +16,10 @@ from openevolve.database import Program, ProgramDatabase
 from openevolve.evaluator import Evaluator
 from openevolve.evolution_trace import EvolutionTracer
 from openevolve.llm.ensemble import LLMEnsemble
-from openevolve.prompt.sampler import PromptSampler
 from openevolve.process_parallel import ProcessParallelController
-from openevolve.utils.code_utils import (
-    extract_code_language,
-)
-from openevolve.utils.format_utils import (
-    format_metrics_safe,
-    format_improvement_safe,
-)
+from openevolve.prompt.sampler import PromptSampler
+from openevolve.utils.code_utils import extract_code_language
+from openevolve.utils.format_utils import format_improvement_safe, format_metrics_safe
 
 logger = logging.getLogger(__name__)
 
@@ -75,17 +70,11 @@ class OpenEvolve:
         self,
         initial_program_path: str,
         evaluation_file: str,
-        config_path: Optional[str] = None,
-        config: Optional[Config] = None,
+        config: Config,
         output_dir: Optional[str] = None,
     ):
-        # Load configuration
-        if config is not None:
-            # Use provided Config object directly
-            self.config = config
-        else:
-            # Load from file or use defaults
-            self.config = load_config(config_path)
+        # Load configuration (loaded in main_async)
+        self.config = config
 
         # Set up output directory
         self.output_dir = output_dir or os.path.join(
@@ -98,9 +87,10 @@ class OpenEvolve:
 
         # Set random seed for reproducibility if specified
         if self.config.random_seed is not None:
-            import random
-            import numpy as np
             import hashlib
+            import random
+
+            import numpy as np
 
             # Set global random seeds
             random.seed(self.config.random_seed)
@@ -139,7 +129,7 @@ class OpenEvolve:
                 self.file_extension = f".{self.file_extension}"
 
         # Set the file_suffix in config (can be overridden in YAML)
-        if not hasattr(self.config, 'file_suffix') or self.config.file_suffix == ".py":
+        if not hasattr(self.config, "file_suffix") or self.config.file_suffix == ".py":
             self.config.file_suffix = self.file_extension
 
         # Initialize components
@@ -175,10 +165,9 @@ class OpenEvolve:
             if not trace_output_path:
                 # Default to output_dir/evolution_trace.{format}
                 trace_output_path = os.path.join(
-                    self.output_dir, 
-                    f"evolution_trace.{self.config.evolution_trace.format}"
+                    self.output_dir, f"evolution_trace.{self.config.evolution_trace.format}"
                 )
-            
+
             self.evolution_tracer = EvolutionTracer(
                 output_path=trace_output_path,
                 format=self.config.evolution_trace.format,
@@ -186,7 +175,7 @@ class OpenEvolve:
                 include_prompts=self.config.evolution_trace.include_prompts,
                 enabled=True,
                 buffer_size=self.config.evolution_trace.buffer_size,
-                compress=self.config.evolution_trace.compress
+                compress=self.config.evolution_trace.compress,
             )
             logger.info(f"Evolution tracing enabled: {trace_output_path}")
         else:
@@ -305,8 +294,11 @@ class OpenEvolve:
         # Initialize improved parallel processing
         try:
             self.parallel_controller = ProcessParallelController(
-                self.config, self.evaluation_file, self.database, self.evolution_tracer,
-                file_suffix=self.config.file_suffix
+                self.config,
+                self.evaluation_file,
+                self.database,
+                self.evolution_tracer,
+                file_suffix=self.config.file_suffix,
             )
 
             # Set up signal handlers for graceful shutdown
@@ -349,7 +341,7 @@ class OpenEvolve:
             if self.parallel_controller:
                 self.parallel_controller.stop()
                 self.parallel_controller = None
-            
+
             # Close evolution tracer
             if self.evolution_tracer:
                 self.evolution_tracer.close()

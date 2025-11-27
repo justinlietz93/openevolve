@@ -8,8 +8,9 @@ import multiprocessing as mp
 import pickle
 import signal
 import time
-from concurrent.futures import ProcessPoolExecutor, Future, TimeoutError as FutureTimeoutError
-from dataclasses import dataclass, asdict
+from concurrent.futures import Future, ProcessPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -37,11 +38,11 @@ class SerializableResult:
 def _worker_init(config_dict: dict, evaluation_file: str, parent_env: dict = None) -> None:
     """Initialize worker process with necessary components"""
     import os
-    
+
     # Set environment from parent process
     if parent_env:
         os.environ.update(parent_env)
-    
+
     global _worker_config
     global _worker_evaluation_file
     global _worker_evaluator
@@ -55,8 +56,8 @@ def _worker_init(config_dict: dict, evaluation_file: str, parent_env: dict = Non
         DatabaseConfig,
         EvaluatorConfig,
         LLMConfig,
-        PromptConfig,
         LLMModelConfig,
+        PromptConfig,
     )
 
     # Reconstruct model objects
@@ -125,7 +126,7 @@ def _lazy_init_worker_components():
             evaluator_llm,
             evaluator_prompt,
             database=None,  # No shared database in worker
-            suffix=getattr(_worker_config, 'file_suffix', '.py'),
+            suffix=getattr(_worker_config, "file_suffix", ".py"),
         )
 
 
@@ -201,7 +202,7 @@ def _run_iteration_worker(
 
         # Parse response based on evolution mode
         if _worker_config.diff_based_evolution:
-            from openevolve.utils.code_utils import extract_diffs, apply_diff, format_diff_summary
+            from openevolve.utils.code_utils import apply_diff, extract_diffs, format_diff_summary
 
             diff_blocks = extract_diffs(llm_response)
             if not diff_blocks:
@@ -275,7 +276,14 @@ def _run_iteration_worker(
 class ProcessParallelController:
     """Controller for process-based parallel evolution"""
 
-    def __init__(self, config: Config, evaluation_file: str, database: ProgramDatabase, evolution_tracer=None, file_suffix: str = ".py"):
+    def __init__(
+        self,
+        config: Config,
+        evaluation_file: str,
+        database: ProgramDatabase,
+        evolution_tracer=None,
+        file_suffix: str = ".py",
+    ):
         self.config = config
         self.evaluation_file = evaluation_file
         self.database = database
@@ -298,7 +306,7 @@ class ProcessParallelController:
 
         # The asdict() call itself triggers the deepcopy which tries to serialize novelty_llm. Remove it first.
         config.database.novelty_llm = None
-        
+
         return {
             "llm": {
                 "models": [asdict(m) for m in config.llm.models],
@@ -334,15 +342,27 @@ class ProcessParallelController:
 
         # Pass current environment to worker processes
         import os
-        current_env = dict(os.environ)
-        
-        # Create process pool with initializer
-        self.executor = ProcessPoolExecutor(
-            max_workers=self.num_workers,
-            initializer=_worker_init,
-            initargs=(config_dict, self.evaluation_file, current_env),
-        )
+        import sys
 
+        current_env = dict(os.environ)
+
+        executor_kwargs = {
+            "max_workers": self.num_workers,
+            "initializer": _worker_init,
+            "initargs": (config_dict, self.evaluation_file, current_env),
+        }
+        if sys.version_info >= (3, 11):
+            logger.info(f"Set max {self.config.max_tasks_per_child} tasks per child")
+            executor_kwargs["max_tasks_per_child"] = self.config.max_tasks_per_child
+        elif self.config.max_tasks_per_child is not None:
+            logger.warn(
+                "max_tasks_per_child is only supported in Python 3.11+. "
+                "Ignoring max_tasks_per_child and using spawn start method."
+            )
+            executor_kwargs["mp_context"] = mp.get_context("spawn")
+
+        # Create process pool with initializer
+        self.executor = ProcessPoolExecutor(**executor_kwargs)
         logger.info(f"Started process pool with {self.num_workers} processes")
 
     def stop(self) -> None:
@@ -426,7 +446,9 @@ class ProcessParallelController:
         completed_iterations = 0
 
         # Island management
-        programs_per_island = self.config.database.programs_per_island or max(1, max_iterations // (self.config.database.num_islands * 10))
+        programs_per_island = self.config.database.programs_per_island or max(
+            1, max_iterations // (self.config.database.num_islands * 10)
+        )
         current_island_counter = 0
 
         # Early stopping tracking
@@ -480,15 +502,19 @@ class ProcessParallelController:
                     # Store artifacts
                     if result.artifacts:
                         self.database.store_artifacts(child_program.id, result.artifacts)
-                    
+
                     # Log evolution trace
                     if self.evolution_tracer:
                         # Retrieve parent program for trace logging
-                        parent_program = self.database.get(result.parent_id) if result.parent_id else None
+                        parent_program = (
+                            self.database.get(result.parent_id) if result.parent_id else None
+                        )
                         if parent_program:
                             # Determine island ID
-                            island_id = child_program.metadata.get("island", self.database.current_island)
-                            
+                            island_id = child_program.metadata.get(
+                                "island", self.database.current_island
+                            )
+
                             self.evolution_tracer.log_trace(
                                 iteration=completed_iteration,
                                 parent_program=parent_program,
@@ -500,7 +526,7 @@ class ProcessParallelController:
                                 metadata={
                                     "iteration_time": result.iteration_time,
                                     "changes": child_program.metadata.get("changes", ""),
-                                }
+                                },
                             )
 
                     # Log prompts
@@ -590,8 +616,10 @@ class ProcessParallelController:
 
                     # Check target score
                     if target_score is not None and child_program.metrics:
-                        if ('combined_score' in child_program.metrics and
-                            child_program.metrics['combined_score'] >= target_score):
+                        if (
+                            "combined_score" in child_program.metrics
+                            and child_program.metrics["combined_score"] >= target_score
+                        ):
                             logger.info(
                                 f"Target score {target_score} reached at iteration {completed_iteration}"
                             )
@@ -701,8 +729,7 @@ class ProcessParallelController:
             # Use thread-safe sampling that doesn't modify shared state
             # This fixes the race condition from GitHub issue #246
             parent, inspirations = self.database.sample_from_island(
-                island_id=target_island,
-                num_inspirations=self.config.prompt.num_top_programs
+                island_id=target_island, num_inspirations=self.config.prompt.num_top_programs
             )
 
             # Create database snapshot
