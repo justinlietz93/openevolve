@@ -342,21 +342,28 @@ class ProcessParallelController:
 
         # Pass current environment to worker processes
         import os
+        import sys
 
         current_env = dict(os.environ)
 
-        # Create process pool with initializer
-        self.executor = ProcessPoolExecutor(
-            max_workers=self.num_workers,
-            initializer=_worker_init,
-            initargs=(config_dict, self.evaluation_file, current_env),
-            max_tasks_per_child=self.config.max_tasks_per_child,
-        )
+        executor_kwargs = {
+            "max_workers": self.num_workers,
+            "initializer": _worker_init,
+            "initargs": (config_dict, self.evaluation_file, current_env),
+        }
+        if sys.version_info >= (3, 11):
+            logger.info(f"Set max {self.config.max_tasks_per_child} tasks per child")
+            executor_kwargs["max_tasks_per_child"] = self.config.max_tasks_per_child
+        elif self.config.max_tasks_per_child is not None:
+            logger.warn(
+                "max_tasks_per_child is only supported in Python 3.11+. "
+                "Ignoring max_tasks_per_child and using spawn start method."
+            )
+            executor_kwargs["mp_context"] = mp.get_context("spawn")
 
-        logger.info(
-            f"Started process pool with {self.num_workers} processes "
-            f"and max {self.config.max_tasks_per_child} tasks per child"
-        )
+        # Create process pool with initializer
+        self.executor = ProcessPoolExecutor(**executor_kwargs)
+        logger.info(f"Started process pool with {self.num_workers} processes")
 
     def stop(self) -> None:
         """Stop the process pool"""
