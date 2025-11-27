@@ -78,12 +78,11 @@ async def main_async() -> int:
         print(f"Error: Evaluation file '{args.evaluation_file}' not found")
         return 1
 
-    # Create config object with command-line overrides
-    config = None
-    if args.api_base or args.primary_model or args.secondary_model:
-        # Load base config from file or defaults
-        config = load_config(args.config)
+    # Load base config from file or defaults
+    config = load_config(args.config)
 
+    # Create config object with command-line overrides
+    if args.api_base or args.primary_model or args.secondary_model:
         # Apply command-line overrides
         if args.api_base:
             config.llm.api_base = args.api_base
@@ -110,7 +109,6 @@ async def main_async() -> int:
             initial_program_path=args.initial_program,
             evaluation_file=args.evaluation_file,
             config=config,
-            config_path=args.config if config is None else None,
             output_dir=args.output,
         )
 
