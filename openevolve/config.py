@@ -367,6 +367,9 @@ class Config:
     convergence_threshold: float = 0.001
     early_stopping_metric: str = "combined_score"
 
+    # Parallel controller settings
+    max_tasks_per_child: Optional[int] = None
+
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "Config":
         """Load configuration from a YAML file"""
