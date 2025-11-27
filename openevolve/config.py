@@ -3,7 +3,7 @@ Configuration handling for OpenEvolve
 """
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
@@ -41,7 +41,7 @@ class LLMModelConfig:
 
     # Reproducibility
     random_seed: Optional[int] = None
-    
+
     # Reasoning parameters
     reasoning_effort: Optional[str] = None
 
@@ -75,7 +75,7 @@ class LLMConfig(LLMModelConfig):
     primary_model_weight: float = None
     secondary_model: str = None
     secondary_model_weight: float = None
-    
+
     # Reasoning parameters (inherited from LLMModelConfig but can be overridden)
     reasoning_effort: Optional[str] = None
 
@@ -146,7 +146,7 @@ class LLMConfig(LLMModelConfig):
         # Clear existing models lists
         self.models = []
         self.evaluator_models = []
-        
+
         # Re-run model generation logic from __post_init__
         if self.primary_model:
             # Create primary model
@@ -205,6 +205,7 @@ class PromptConfig:
     template_variations: Dict[str, List[str]] = field(default_factory=dict)
 
     # Meta-prompting
+    # Note: meta-prompting features not implemented
     use_meta_prompting: bool = False
     meta_prompt_weight: float = 0.1
 
@@ -254,6 +255,7 @@ class DatabaseConfig:
     elite_selection_ratio: float = 0.1
     exploration_ratio: float = 0.2
     exploitation_ratio: float = 0.7
+    # Note: diversity_metric fixed to "edit_distance"
     diversity_metric: str = "edit_distance"  # Options: "edit_distance", "feature_based"
 
     # Feature map dimensions for MAP-Elites
@@ -291,6 +293,7 @@ class DatabaseConfig:
     embedding_model: Optional[str] = None
     similarity_threshold: float = 0.99
 
+
 @dataclass
 class EvaluatorConfig:
     """Configuration for program evaluation"""
@@ -300,6 +303,7 @@ class EvaluatorConfig:
     max_retries: int = 3
 
     # Resource limits for evaluation
+    # Note: resource limits not implemented
     memory_limit_mb: Optional[int] = None
     cpu_limit: Optional[float] = None
 
@@ -309,6 +313,7 @@ class EvaluatorConfig:
 
     # Parallel evaluation
     parallel_evaluations: int = 1
+    # Note: distributed evaluation not implemented
     distributed: bool = False
 
     # LLM-based feedback
@@ -323,7 +328,7 @@ class EvaluatorConfig:
 @dataclass
 class EvolutionTraceConfig:
     """Configuration for evolution trace logging"""
-    
+
     enabled: bool = False
     format: str = "jsonl"  # Options: "jsonl", "json", "hdf5"
     include_code: bool = False
@@ -377,7 +382,9 @@ class Config:
 
         # Update top-level fields
         for key, value in config_dict.items():
-            if key not in ["llm", "prompt", "database", "evaluator", "evolution_trace"] and hasattr(config, key):
+            if key not in ["llm", "prompt", "database", "evaluator", "evolution_trace"] and hasattr(
+                config, key
+            ):
                 setattr(config, key, value)
 
         # Update nested configs
@@ -406,87 +413,7 @@ class Config:
         return config
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert configuration to a dictionary"""
-        return {
-            # General settings
-            "max_iterations": self.max_iterations,
-            "checkpoint_interval": self.checkpoint_interval,
-            "log_level": self.log_level,
-            "log_dir": self.log_dir,
-            "random_seed": self.random_seed,
-            # Component configurations
-            "llm": {
-                "models": self.llm.models,
-                "evaluator_models": self.llm.evaluator_models,
-                "api_base": self.llm.api_base,
-                "temperature": self.llm.temperature,
-                "top_p": self.llm.top_p,
-                "max_tokens": self.llm.max_tokens,
-                "timeout": self.llm.timeout,
-                "retries": self.llm.retries,
-                "retry_delay": self.llm.retry_delay,
-            },
-            "prompt": {
-                "template_dir": self.prompt.template_dir,
-                "system_message": self.prompt.system_message,
-                "evaluator_system_message": self.prompt.evaluator_system_message,
-                "num_top_programs": self.prompt.num_top_programs,
-                "num_diverse_programs": self.prompt.num_diverse_programs,
-                "use_template_stochasticity": self.prompt.use_template_stochasticity,
-                "template_variations": self.prompt.template_variations,
-                # Note: meta-prompting features not implemented
-                # "use_meta_prompting": self.prompt.use_meta_prompting,
-                # "meta_prompt_weight": self.prompt.meta_prompt_weight,
-            },
-            "database": {
-                "db_path": self.database.db_path,
-                "in_memory": self.database.in_memory,
-                "population_size": self.database.population_size,
-                "archive_size": self.database.archive_size,
-                "num_islands": self.database.num_islands,
-                "elite_selection_ratio": self.database.elite_selection_ratio,
-                "exploration_ratio": self.database.exploration_ratio,
-                "exploitation_ratio": self.database.exploitation_ratio,
-                # Note: diversity_metric fixed to "edit_distance"
-                # "diversity_metric": self.database.diversity_metric,
-                "feature_dimensions": self.database.feature_dimensions,
-                "feature_bins": self.database.feature_bins,
-                "migration_interval": self.database.migration_interval,
-                "migration_rate": self.database.migration_rate,
-                "random_seed": self.database.random_seed,
-                "log_prompts": self.database.log_prompts,
-            },
-            "evaluator": {
-                "timeout": self.evaluator.timeout,
-                "max_retries": self.evaluator.max_retries,
-                # Note: resource limits not implemented
-                # "memory_limit_mb": self.evaluator.memory_limit_mb,
-                # "cpu_limit": self.evaluator.cpu_limit,
-                "cascade_evaluation": self.evaluator.cascade_evaluation,
-                "cascade_thresholds": self.evaluator.cascade_thresholds,
-                "parallel_evaluations": self.evaluator.parallel_evaluations,
-                # Note: distributed evaluation not implemented
-                # "distributed": self.evaluator.distributed,
-                "use_llm_feedback": self.evaluator.use_llm_feedback,
-                "llm_feedback_weight": self.evaluator.llm_feedback_weight,
-            },
-            "evolution_trace": {
-                "enabled": self.evolution_trace.enabled,
-                "format": self.evolution_trace.format,
-                "include_code": self.evolution_trace.include_code,
-                "include_prompts": self.evolution_trace.include_prompts,
-                "output_path": self.evolution_trace.output_path,
-                "buffer_size": self.evolution_trace.buffer_size,
-                "compress": self.evolution_trace.compress,
-            },
-            # Evolution settings
-            "diff_based_evolution": self.diff_based_evolution,
-            "max_code_length": self.max_code_length,
-            # Early stopping settings
-            "early_stopping_patience": self.early_stopping_patience,
-            "convergence_threshold": self.convergence_threshold,
-            "early_stopping_metric": self.early_stopping_metric,
-        }
+        return asdict(self)
 
     def to_yaml(self, path: Union[str, Path]) -> None:
         """Save configuration to a YAML file"""
