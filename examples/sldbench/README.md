@@ -2,7 +2,9 @@
 
 ## Introduction
 
-**SLDBench** is a benchmark for discovering scaling laws, originally introduced in the paper [*Can Language Models Discover Their Own Scaling Laws?*](https://arxiv.org/abs/2507.21184) by Lin et al. It aggregates over **5,000 LLM training experiments** from recent scaling-law literature into a unified dataset, hosted on the Hugging Face Hub at [`pkuHaowei/sldbench`](https://huggingface.co/datasets/pkuHaowei/sldbench).
+**SLDBench** is a benchmark for discovering scaling laws, originally introduced in the paper [*Can Language Models Discover Their Own Scaling Laws?*](https://arxiv.org/abs/2507.21184) by Lin et al. It aggregates over **5,000 LLM training experiments** from recent scaling-law literature into a unified dataset, hosted on the Hugging Face Hub at [`pkuHaowei/sldbench`](https://huggingface.co/datasets/pkuHaowei/sldbench). 
+
+Also check this [blog](https://algorithmicsuperintelligence.ai/blog/openevolve-sldagent/) for quickly understanding OpenEvolve x SLDBench.
 
 ## Overview
 
