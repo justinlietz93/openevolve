@@ -3,6 +3,7 @@ Configuration handling for OpenEvolve
 """
 
 import os
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
@@ -13,15 +14,45 @@ if TYPE_CHECKING:
     from openevolve.llm.base import LLMInterface
 
 
+_ENV_VAR_PATTERN = re.compile(r"^\$\{([^}]+)\}$")  # ${VAR}
+
+
+def _resolve_env_var(value: Optional[str]) -> Optional[str]:
+    """
+    Resolve ${VAR} environment variable reference in a string value.
+    In current implementation pattern must match the entire string (e.g., "${OPENAI_API_KEY}"),
+    not embedded within other text.
+
+    Args:
+        value: The string value that may contain ${VAR} syntax
+
+    Returns:
+        The resolved value with environment variable expanded, or original value if no match
+
+    Raises:
+        ValueError: If the environment variable is referenced but not set
+    """
+    if value is None:
+        return None
+
+    match = _ENV_VAR_PATTERN.match(value)
+    if not match:
+        return value
+
+    var_name = match.group(1)
+    env_value = os.environ.get(var_name)
+    if env_value is None:
+        raise ValueError(f"Environment variable {var_name} is not set")
+    return env_value
+
+
 @dataclass
 class LLMModelConfig:
     """Configuration for a single LLM model"""
 
     # API configuration
     api_base: str = None
-    api_key: Optional[Union[str, Dict[str, str]]] = (
-        None  # either api_key or from_env: api_key_var_name
-    )
+    api_key: Optional[str] = None
     name: str = None
 
     # Custom LLM client
@@ -48,18 +79,8 @@ class LLMModelConfig:
     reasoning_effort: Optional[str] = None
 
     def __post_init__(self):
-        """Post-initialization to set up API key"""
-        if self.api_key is not None:
-            if isinstance(self.api_key, dict):
-                env_var_name = self.api_key.get("from_env")
-                if env_var_name is None:
-                    raise ValueError(
-                        f"api_key is a dict but 'from_env' key is not set: {self.api_key}"
-                    )
-                key = os.environ.get(env_var_name)
-                if key is None:
-                    raise ValueError(f"Environment variable {env_var_name} is not set")
-                self.api_key = key
+        """Post-initialization to resolve ${VAR} env var references in api_key"""
+        self.api_key = _resolve_env_var(self.api_key)
 
 
 @dataclass
@@ -97,7 +118,7 @@ class LLMConfig(LLMModelConfig):
 
     def __post_init__(self):
         """Post-initialization to set up model configurations"""
-        super().__post_init__()  # resolve from_env for api_key at LLMConfig level
+        super().__post_init__()  # Resolve ${VAR} in api_key at LLMConfig level
 
         # Handle backward compatibility for primary_model(_weight) and secondary_model(_weight).
         if self.primary_model:
