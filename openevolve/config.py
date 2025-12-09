@@ -19,7 +19,9 @@ class LLMModelConfig:
 
     # API configuration
     api_base: str = None
-    api_key: Optional[str] = None
+    api_key: Optional[Union[str, Dict[str, str]]] = (
+        None  # either api_key or from_env: api_key_var_name
+    )
     name: str = None
 
     # Custom LLM client
@@ -44,6 +46,20 @@ class LLMModelConfig:
 
     # Reasoning parameters
     reasoning_effort: Optional[str] = None
+
+    def __post_init__(self):
+        """Post-initialization to set up API key"""
+        if self.api_key is not None:
+            if isinstance(self.api_key, dict):
+                env_var_name = self.api_key.get("from_env")
+                if env_var_name is None:
+                    raise ValueError(
+                        f"api_key is a dict but 'from_env' key is not set: {self.api_key}"
+                    )
+                key = os.environ.get(env_var_name)
+                if key is None:
+                    raise ValueError(f"Environment variable {env_var_name} is not set")
+                self.api_key = key
 
 
 @dataclass
@@ -81,6 +97,8 @@ class LLMConfig(LLMModelConfig):
 
     def __post_init__(self):
         """Post-initialization to set up model configurations"""
+        super().__post_init__()  # resolve from_env for api_key at LLMConfig level
+
         # Handle backward compatibility for primary_model(_weight) and secondary_model(_weight).
         if self.primary_model:
             # Create primary model
