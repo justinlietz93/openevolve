@@ -32,14 +32,15 @@ def helper_function():
 
 ### 2. Evaluator (`evaluator.py`)
 
-Your evaluator must return a **dictionary** with specific metric names:
+Your evaluator can return either a **dictionary** or an **`EvaluationResult`** object:
 
 ```python
 def evaluate(program_path: str) -> Dict:
     """
-    Evaluate the program and return metrics as a dictionary.
-    
-    CRITICAL: Must return a dictionary, not an EvaluationResult object.
+    Evaluate the program and return metrics.
+
+    Can return either a dict or EvaluationResult object.
+    Use EvaluationResult if you want to include artifacts for debugging.
     """
     try:
         # Import and run your program
@@ -57,13 +58,23 @@ def evaluate(program_path: str) -> Dict:
             'combined_score': 0.0,  # Always return combined_score, even on error
             'error': str(e)
         }
+
+# Or use EvaluationResult for artifacts support:
+from openevolve.evaluation_result import EvaluationResult
+
+def evaluate(program_path: str) -> EvaluationResult:
+    return EvaluationResult(
+        metrics={'combined_score': 0.8, 'accuracy': 0.9},
+        artifacts={'debug_info': 'useful debugging data'}
+    )
 ```
 
 **Critical Requirements:**
-- ✅ **Return a dictionary**, not `EvaluationResult` object
+- ✅ **Return a dictionary or `EvaluationResult`** - both are supported
 - ✅ **Must include `'combined_score'`** - this is the primary metric OpenEvolve uses
 - ✅ Higher `combined_score` values should indicate better programs
 - ✅ Handle exceptions and return `combined_score: 0.0` on failure
+- ✅ Use `EvaluationResult` with artifacts for richer debugging feedback
 
 ### 3. Configuration (`config.yaml`)
 
@@ -121,17 +132,16 @@ log_level: "INFO"
 
 ## Common Configuration Mistakes
 
-❌ **Wrong:** `feature_dimensions: 2`  
+❌ **Wrong:** `feature_dimensions: 2`
 ✅ **Correct:** `feature_dimensions: ["score", "complexity"]`
 
-❌ **Wrong:** Returning `EvaluationResult` object  
-✅ **Correct:** Returning `{'combined_score': 0.8, ...}` dictionary
-
-❌ **Wrong:** Using `'total_score'` metric name  
+❌ **Wrong:** Using `'total_score'` metric name
 ✅ **Correct:** Using `'combined_score'` metric name
 
-❌ **Wrong:** Multiple EVOLVE-BLOCK sections  
+❌ **Wrong:** Multiple EVOLVE-BLOCK sections
 ✅ **Correct:** Exactly one EVOLVE-BLOCK section
+
+💡 **Tip:** Both `{'combined_score': 0.8, ...}` dict and `EvaluationResult(metrics={...}, artifacts={...})` are valid return types
 
 ## MAP-Elites Feature Dimensions Best Practices
 
