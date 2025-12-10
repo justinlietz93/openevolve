@@ -58,6 +58,15 @@ def evaluate(program_path: str) -> Dict:
             'combined_score': 0.0,  # Always return combined_score, even on error
             'error': str(e)
         }
+
+# Or use EvaluationResult for artifacts support:
+from openevolve.evaluation_result import EvaluationResult
+
+def evaluate(program_path: str) -> EvaluationResult:
+    return EvaluationResult(
+        metrics={'combined_score': 0.8, 'accuracy': 0.9},
+        artifacts={'debug_info': 'useful debugging data'}
+    )
 ```
 
 **Critical Requirements:**
