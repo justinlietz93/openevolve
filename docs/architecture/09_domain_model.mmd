@@ -1,0 +1,207 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#616161','secondaryColor':'#43a047','tertiaryColor':'#e53935'}}}%%
+
+classDiagram
+    %% Core Entities
+    class Program {
+        <<Entity>>
+        +id: str
+        +code: str
+        +language: str
+        +parent_id: Optional~str~
+        +generation: int
+        +timestamp: float
+        +iteration_found: int
+        +metrics: Dict~str,float~
+        +complexity: float
+        +diversity: float
+        +metadata: Dict
+        +prompts: Optional~Dict~
+        +artifacts_json: Optional~str~
+        +artifact_dir: Optional~str~
+        +embedding: Optional~List~float~~
+        +to_dict() Dict
+        +from_dict(data) Program
+    }
+    
+    class ProgramDatabase {
+        <<Aggregate Root>>
+        +islands: List~Island~
+        +num_islands: int
+        +population_size: int
+        +feature_dimensions: List~str~
+        +best_program: Optional~Program~
+        +add_program(program) bool
+        +sample_programs(strategy) List~Program~
+        +trigger_migration() None
+        +get_island_stats() Dict
+        +save_to_file(path) None
+        +load_from_file(path) None
+    }
+    
+    class Island {
+        <<Entity>>
+        +island_id: int
+        +grid: Dict~Tuple,Program~
+        +generation: int
+        +programs_added: int
+        +feature_min: Dict~str,float~
+        +feature_max: Dict~str,float~
+        +add_to_grid(program) bool
+        +sample_elite(n) List~Program~
+        +sample_diverse(n) List~Program~
+        +get_coverage() float
+    }
+    
+    class FeatureCoordinate {
+        <<Value Object>>
+        +dimensions: Tuple~int~
+        +raw_values: Dict~str,float~
+        +equals(other) bool
+        +hash() int
+    }
+    
+    class EvaluationResult {
+        <<Value Object>>
+        +passed: bool
+        +metrics: Dict~str,Any~
+        +artifacts: Optional~Dict~
+        +features: Optional~Dict~
+        +combined_score: float
+        +validate() None
+    }
+    
+    %% Configuration Entities
+    class Config {
+        <<Entity>>
+        +max_iterations: int
+        +random_seed: Optional~int~
+        +output_dir: str
+        +llm: LLMConfig
+        +database: DatabaseConfig
+        +evaluator: EvaluatorConfig
+        +prompt: PromptConfig
+        +evolution_trace: EvolutionTraceConfig
+        +load_config(path) Config
+    }
+    
+    class LLMConfig {
+        <<Value Object>>
+        +models: List~LLMModelConfig~
+        +temperature: float
+        +max_tokens: int
+        +api_base: Optional~str~
+        +timeout: int
+    }
+    
+    class DatabaseConfig {
+        <<Value Object>>
+        +population_size: int
+        +num_islands: int
+        +feature_dimensions: List~str~
+        +migration_interval: int
+        +selection_strategy: str
+    }
+    
+    %% Evolution Tracking
+    class EvolutionTrace {
+        <<Entity>>
+        +program_id: str
+        +parent_id: Optional~str~
+        +generation: int
+        +iteration: int
+        +timestamp: float
+        +metrics: Dict
+        +improvement: Dict
+        +island_id: int
+        +to_dict() Dict
+    }
+    
+    class EvolutionTracer {
+        <<Service>>
+        +traces: List~EvolutionTrace~
+        +record_iteration(results) None
+        +extract_lineage(program_id) List~EvolutionTrace~
+        +export(format) bytes
+    }
+    
+    %% LLM Domain
+    class LLMEnsemble {
+        <<Service>>
+        +models: List~LLMInterface~
+        +weights: List~float~
+        +generate(prompt) str
+        -_sample_model() LLMInterface
+    }
+    
+    class LLMInterface {
+        <<Interface>>
+        +generate(prompt, params) str
+    }
+    
+    class OpenAILLM {
+        <<Service>>
+        +model: str
+        +api_key: str
+        +api_base: str
+        +generate(prompt, params) str
+        -_make_api_call() Response
+    }
+    
+    %% Prompt Domain
+    class PromptSampler {
+        <<Service>>
+        +database: ProgramDatabase
+        +templates: TemplateManager
+        +build_prompt(program, context) str
+        -_format_inspiration() str
+        -_format_artifacts() str
+    }
+    
+    class TemplateManager {
+        <<Service>>
+        +templates: Dict~str,str~
+        +fragments: Dict~str,str~
+        +get_template(name) str
+        +get_fragment(name) str
+    }
+    
+    %% Relationships - Aggregates
+    ProgramDatabase "1" *-- "N" Island : contains
+    Island "1" *-- "N" Program : stores in grid
+    Program "1" *-- "1" FeatureCoordinate : has features
+    
+    %% Relationships - References
+    Program "N" --> "1" Program : parent_id references
+    EvolutionTrace "1" --> "1" Program : tracks
+    EvolutionTracer "1" o-- "N" EvolutionTrace : manages
+    
+    %% Relationships - Services
+    ProgramDatabase --> Program : creates/stores
+    ProgramDatabase --> FeatureCoordinate : computes
+    PromptSampler --> ProgramDatabase : samples from
+    PromptSampler --> TemplateManager : uses
+    LLMEnsemble --> LLMInterface : delegates to
+    OpenAILLM --|> LLMInterface : implements
+    
+    %% Relationships - Configuration
+    Config "1" *-- "1" LLMConfig : contains
+    Config "1" *-- "1" DatabaseConfig : contains
+    ProgramDatabase --> DatabaseConfig : configured by
+    LLMEnsemble --> LLMConfig : configured by
+    
+    %% Invariants and Business Rules
+    note for Program "Invariants:\n- id must be unique\n- code must be non-empty\n- generation >= 0\n- parent_id must exist in DB or be None"
+    note for ProgramDatabase "Invariants:\n- Each island has same feature dimensions\n- Best program always tracked globally\n- Grid cells contain at most 1 program\n- All programs have valid feature coordinates"
+    note for Island "Invariants:\n- generation increments monotonically\n- feature_min/max updated on each addition\n- Grid coverage <= 100%"
+    note for FeatureCoordinate "Value Object:\n- Immutable\n- Equality by value\n- Hashable for dict keys"
+    note for EvaluationResult "Value Object:\n- Immutable\n- Validates metric types\n- combined_score computed from metrics"
+
+    %% Domain Layer Boundaries
+    note "DOMAIN LAYER:\n- Pure business logic\n- No external dependencies\n- Entities + Value Objects + Services"
+    note "INFRASTRUCTURE LAYER:\n- External APIs (LLM, embeddings)\n- File I/O\n- Process management"
+    note "APPLICATION LAYER:\n- Controller\n- CLI/API\n- Orchestration"
+
+    %% Metadata
+    %% Commit: 1c88c4a3df6032aae4052bb543f44ece15f03901
+    %% Generated: 2025-11-09
+    %% Description: Domain model showing entities, aggregates, value objects, and invariants
