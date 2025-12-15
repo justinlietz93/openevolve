@@ -452,6 +452,8 @@ class Config:
             config.evaluator = EvaluatorConfig(**config_dict["evaluator"])
         if "evolution_trace" in config_dict:
             config.evolution_trace = EvolutionTraceConfig(**config_dict["evolution_trace"])
+        if "diff_pattern" in config_dict:
+            config.diff_pattern = config_dict["diff_pattern"]
 
         return config
 
