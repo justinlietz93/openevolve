@@ -453,6 +453,11 @@ class Config:
         if "evolution_trace" in config_dict:
             config.evolution_trace = EvolutionTraceConfig(**config_dict["evolution_trace"])
         if "diff_pattern" in config_dict:
+            # Validate it's a valid regex
+            try:
+                re.compile(config_dict["diff_pattern"])
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern in diff_pattern: {e}")
             config.diff_pattern = config_dict["diff_pattern"]
 
         return config
