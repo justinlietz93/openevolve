@@ -84,14 +84,14 @@ async def run_iteration_with_shared_db(
 
         # Parse the response
         if config.diff_based_evolution:
-            diff_blocks = extract_diffs(llm_response)
+            diff_blocks = extract_diffs(llm_response, config.diff_pattern)
 
             if not diff_blocks:
                 logger.warning(f"Iteration {iteration+1}: No valid diffs found in response")
                 return None
 
             # Apply the diffs
-            child_code = apply_diff(parent.code, llm_response)
+            child_code = apply_diff(parent.code, llm_response, config.diff_pattern)
             changes_summary = format_diff_summary(diff_blocks)
         else:
             # Parse full rewrite

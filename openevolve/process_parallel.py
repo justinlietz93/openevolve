@@ -204,13 +204,13 @@ def _run_iteration_worker(
         if _worker_config.diff_based_evolution:
             from openevolve.utils.code_utils import apply_diff, extract_diffs, format_diff_summary
 
-            diff_blocks = extract_diffs(llm_response)
+            diff_blocks = extract_diffs(llm_response, _worker_config.diff_pattern)
             if not diff_blocks:
                 return SerializableResult(
                     error=f"No valid diffs found in response", iteration=iteration
                 )
 
-            child_code = apply_diff(parent.code, llm_response)
+            child_code = apply_diff(parent.code, llm_response, _worker_config.diff_pattern)
             changes_summary = format_diff_summary(diff_blocks)
         else:
             from openevolve.utils.code_utils import parse_full_rewrite
