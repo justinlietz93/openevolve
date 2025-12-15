@@ -9,15 +9,15 @@ from openevolve.api import (
     evolve_function,
     evolve_algorithm,
     evolve_code,
-    EvolutionResult
+    EvolutionResult,
 )
 
 __all__ = [
-    "OpenEvolve", 
+    "OpenEvolve",
     "__version__",
     "run_evolution",
-    "evolve_function", 
+    "evolve_function",
     "evolve_algorithm",
     "evolve_code",
-    "EvolutionResult"
+    "EvolutionResult",
 ]

@@ -27,9 +27,9 @@ OPENAI_EMBEDDING_COSTS = {
     "text-embedding-3-large": 0.13 / M,
 }
 
+
 class EmbeddingClient:
-    def __init__(
-        self, model_name: str = "text-embedding-3-small"):
+    def __init__(self, model_name: str = "text-embedding-3-small"):
         """
         Initialize the EmbeddingClient.
 
@@ -37,7 +37,7 @@ class EmbeddingClient:
             model (str): The OpenAI embedding model name to use.
         """
         self.client, self.model = self._get_client_model(model_name)
-    
+
     def _get_client_model(self, model_name: str) -> tuple[openai.OpenAI, str]:
         if model_name in OPENAI_EMBEDDING_MODELS:
             # Use OPENAI_EMBEDDING_API_KEY if set, otherwise fall back to OPENAI_API_KEY
@@ -58,9 +58,7 @@ class EmbeddingClient:
 
         return client, model_to_use
 
-    def get_embedding(
-        self, code: Union[str, List[str]]
-    ) -> Union[List[float], List[List[float]]]:
+    def get_embedding(self, code: Union[str, List[str]]) -> Union[List[float], List[List[float]]]:
         """
         Computes the text embedding for a code string.
 

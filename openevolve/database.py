@@ -112,9 +112,7 @@ class ProgramDatabase:
         self.programs: Dict[str, Program] = {}
 
         # Per-island feature grids for MAP-Elites
-        self.island_feature_maps: List[Dict[str, str]] = [
-            {} for _ in range(config.num_islands)
-        ]
+        self.island_feature_maps: List[Dict[str, str]] = [{} for _ in range(config.num_islands)]
 
         # Handle both int and dict types for feature_bins
         if isinstance(config.feature_bins, int):
@@ -186,13 +184,15 @@ class ProgramDatabase:
             }
 
         logger.info(f"Initialized program database with {len(self.programs)} programs")
-        
+
         # Novelty judge setup
         from openevolve.embedding import EmbeddingClient
+
         self.novelty_llm = config.novelty_llm
-        self.embedding_client = EmbeddingClient(config.embedding_model) if config.embedding_model else None
+        self.embedding_client = (
+            EmbeddingClient(config.embedding_model) if config.embedding_model else None
+        )
         self.similarity_threshold = config.similarity_threshold
-            
 
     def add(
         self, program: Program, iteration: int = None, target_island: Optional[int] = None
@@ -252,7 +252,9 @@ class ProgramDatabase:
 
         # Novelty check before adding
         if not self._is_novel(program.id, island_idx):
-            logger.debug(f"Program {program.id} failed in novelty check and won't be added in the island {island_idx}")
+            logger.debug(
+                f"Program {program.id} failed in novelty check and won't be added in the island {island_idx}"
+            )
             return program.id  # Do not add non-novel program
 
         # Add to island-specific feature map (replacing existing if better)
@@ -282,7 +284,9 @@ class ProgramDatabase:
 
             if feature_key not in island_feature_map:
                 # New cell occupation in this island
-                logger.info("New MAP-Elites cell occupied in island %d: %s", island_idx, coords_dict)
+                logger.info(
+                    "New MAP-Elites cell occupied in island %d: %s", island_idx, coords_dict
+                )
                 # Check coverage milestone for this island
                 total_possible_cells = self.feature_bins ** len(self.config.feature_dimensions)
                 island_coverage = (len(island_feature_map) + 1) / total_possible_cells
@@ -443,10 +447,7 @@ class ProgramDatabase:
             # Sample inspirations
             inspiration_ids = random.sample(other_programs, num_inspirations)
 
-        inspirations = [
-            self.programs[pid] for pid in inspiration_ids
-            if pid in self.programs
-        ]
+        inspirations = [self.programs[pid] for pid in inspiration_ids if pid in self.programs]
 
         logger.debug(
             f"Sampled parent {parent.id} and {len(inspirations)} inspirations from island {island_id} "
@@ -639,7 +640,9 @@ class ProgramDatabase:
             with open(metadata_path, "r") as f:
                 metadata = json.load(f)
 
-            self.island_feature_maps = metadata.get("island_feature_maps", [{} for _ in range(self.config.num_islands)])
+            self.island_feature_maps = metadata.get(
+                "island_feature_maps", [{} for _ in range(self.config.num_islands)]
+            )
             saved_islands = metadata.get("islands", [])
             self.archive = set(metadata.get("archive", []))
             self.best_program_id = metadata.get("best_program_id")
@@ -758,7 +761,9 @@ class ProgramDatabase:
             )
 
         if feature_keys_to_remove:
-            logger.info(f"Removed {len(feature_keys_to_remove)} missing programs from island feature maps")
+            logger.info(
+                f"Removed {len(feature_keys_to_remove)} missing programs from island feature maps"
+            )
 
         logger.info(f"Reconstructed islands: restored {restored_programs} programs to islands")
 
@@ -950,7 +955,7 @@ class ProgramDatabase:
         """
         Adapted from SakanaAI/ShinkaEvolve (Apache-2.0 License)
         Original source: https://github.com/SakanaAI/ShinkaEvolve/blob/main/shinka/database/dbase.py#L1452
-        
+
         Compute cosine similarity between two vectors.
         """
         if not vec1 or not vec2 or len(vec1) != len(vec2):
@@ -966,9 +971,9 @@ class ProgramDatabase:
             return 0.0
 
         similarity = np.dot(arr1, arr2) / (norm_a * norm_b)
-        
+
         return float(similarity)
-    
+
     def _llm_judge_novelty(self, program: Program, similar_program: Program) -> bool:
         """
         Use LLM to judge if a program is novel compared to a similar existing program
@@ -988,13 +993,14 @@ class ProgramDatabase:
                 loop = asyncio.get_running_loop()
                 # We're in an async context, need to run in a new thread
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(
                         asyncio.run,
                         self.novelty_llm.generate_with_context(
                             system_message=NOVELTY_SYSTEM_MSG,
                             messages=[{"role": "user", "content": user_msg}],
-                        )
+                        ),
                     )
                     content: str = future.result()
             except RuntimeError:
@@ -1034,7 +1040,7 @@ class ProgramDatabase:
             logger.error(f"Error in novelty LLM check: {e}")
 
         return True
-    
+
     def _is_novel(self, program_id: int, island_idx: int) -> bool:
         """
         Determine if a program is novel based on diversity to existing programs
@@ -1042,7 +1048,7 @@ class ProgramDatabase:
         Args:
             program: Program to check
             island_idx: Island index
-            
+
         Returns:
             True if novel, False otherwise
         """
@@ -1053,27 +1059,29 @@ class ProgramDatabase:
         program = self.programs[program_id]
         embd = self.embedding_client.get_embedding(program.code)
         self.programs[program_id].embedding = embd
-        
-        max_smlty = float('-inf')
+
+        max_smlty = float("-inf")
         max_smlty_pid = None
-        
+
         for pid in self.islands[island_idx]:
             other = self.programs[pid]
-            
+
             if other.embedding is None:
-                logger.log("Warning: Program %s has no embedding, skipping similarity check", other.id)
+                logger.log(
+                    "Warning: Program %s has no embedding, skipping similarity check", other.id
+                )
                 continue
-            
+
             similarity = self._cosine_similarity(embd, other.embedding)
-            
+
             if similarity >= max(max_smlty, self.similarity_threshold):
                 max_smlty = similarity
                 max_smlty_pid = pid
-            
+
         if max_smlty_pid is None:
             # No similar programs found, consider it novel
             return True
-            
+
         return self._llm_judge_novelty(program, self.programs[max_smlty_pid])
 
     def _is_better(self, program1: Program, program2: Program) -> bool:
@@ -1424,8 +1432,7 @@ class ProgramDatabase:
         else:
             # Use weighted sampling based on program scores
             island_program_objects = [
-                self.programs[pid] for pid in island_programs
-                if pid in self.programs
+                self.programs[pid] for pid in island_programs if pid in self.programs
             ]
 
             if not island_program_objects:
@@ -1480,7 +1487,9 @@ class ProgramDatabase:
         valid_programs = [pid for pid in island_programs if pid in self.programs]
 
         if not valid_programs:
-            logger.warning(f"Island {island_id} has no valid programs, falling back to random sampling")
+            logger.warning(
+                f"Island {island_id} has no valid programs, falling back to random sampling"
+            )
             return self._sample_random_parent()
 
         # Uniform random selection
@@ -1506,16 +1515,16 @@ class ProgramDatabase:
         valid_archive = [pid for pid in self.archive if pid in self.programs]
 
         if not valid_archive:
-            logger.warning("Archive has no valid programs, falling back to weighted island sampling")
+            logger.warning(
+                "Archive has no valid programs, falling back to weighted island sampling"
+            )
             return self._sample_from_island_weighted(island_id)
 
         island_id = island_id % len(self.islands)
 
         # Prefer programs from the specified island in archive
         archive_programs_in_island = [
-            pid
-            for pid in valid_archive
-            if self.programs[pid].metadata.get("island") == island_id
+            pid for pid in valid_archive if self.programs[pid].metadata.get("island") == island_id
         ]
 
         if archive_programs_in_island:
@@ -1810,7 +1819,8 @@ class ProgramDatabase:
                     # Skip migration if target island already has a program with identical code
                     # Identical code produces identical metrics, so migration would be wasteful
                     target_island_programs = [
-                        self.programs[pid] for pid in self.islands[target_island]
+                        self.programs[pid]
+                        for pid in self.islands[target_island]
                         if pid in self.programs
                     ]
                     has_duplicate_code = any(p.code == migrant.code for p in target_island_programs)
@@ -1823,6 +1833,7 @@ class ProgramDatabase:
                         continue
                     # Create a copy for migration with simple new UUID
                     import uuid
+
                     migrant_copy = Program(
                         id=str(uuid.uuid4()),
                         code=migrant.code,

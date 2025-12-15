@@ -120,9 +120,7 @@ async def run_iteration_with_shared_db(
         artifacts = evaluator.get_pending_artifacts(child_id)
 
         # Set template_key of Prompts
-        template_key = (
-            "full_rewrite_user" if not config.diff_based_evolution else "diff_user"
-        )
+        template_key = "full_rewrite_user" if not config.diff_based_evolution else "diff_user"
 
         # Create a child program
         result.child_program = Program(
@@ -137,13 +135,17 @@ async def run_iteration_with_shared_db(
                 "changes": changes_summary,
                 "parent_metrics": parent.metrics,
             },
-            prompts={
-                template_key: {
-                    "system": prompt["system"],
-                    "user": prompt["user"],
-                    "responses": [llm_response] if llm_response is not None else [],
+            prompts=(
+                {
+                    template_key: {
+                        "system": prompt["system"],
+                        "user": prompt["user"],
+                        "responses": [llm_response] if llm_response is not None else [],
+                    }
                 }
-            } if database.config.log_prompts else None,
+                if database.config.log_prompts
+                else None
+            ),
         )
 
         result.prompt = prompt

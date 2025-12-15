@@ -37,7 +37,11 @@ def parse_evolve_blocks(code: str) -> List[Tuple[int, int, str]]:
     return blocks
 
 
-def apply_diff(original_code: str, diff_text: str, diff_pattern: str = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE") -> str:
+def apply_diff(
+    original_code: str,
+    diff_text: str,
+    diff_pattern: str = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE",
+) -> str:
     """
     Apply a diff to the original code
 
@@ -71,7 +75,9 @@ def apply_diff(original_code: str, diff_text: str, diff_pattern: str = r"<<<<<<<
     return "\n".join(result_lines)
 
 
-def extract_diffs(diff_text: str, diff_pattern: str = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE") -> List[Tuple[str, str]]:
+def extract_diffs(
+    diff_text: str, diff_pattern: str = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE"
+) -> List[Tuple[str, str]]:
     """
     Extract diff blocks from the diff text
 
