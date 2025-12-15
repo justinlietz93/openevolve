@@ -37,13 +37,18 @@ def parse_evolve_blocks(code: str) -> List[Tuple[int, int, str]]:
     return blocks
 
 
-def apply_diff(original_code: str, diff_text: str) -> str:
+def apply_diff(
+    original_code: str,
+    diff_text: str,
+    diff_pattern: str = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE",
+) -> str:
     """
     Apply a diff to the original code
 
     Args:
         original_code: Original source code
         diff_text: Diff in the SEARCH/REPLACE format
+        diff_pattern: Regex pattern for the SEARCH/REPLACE format
 
     Returns:
         Modified code
@@ -53,7 +58,7 @@ def apply_diff(original_code: str, diff_text: str) -> str:
     result_lines = original_lines.copy()
 
     # Extract diff blocks
-    diff_blocks = extract_diffs(diff_text)
+    diff_blocks = extract_diffs(diff_text, diff_pattern)
 
     # Apply each diff block
     for search_text, replace_text in diff_blocks:
@@ -70,17 +75,19 @@ def apply_diff(original_code: str, diff_text: str) -> str:
     return "\n".join(result_lines)
 
 
-def extract_diffs(diff_text: str) -> List[Tuple[str, str]]:
+def extract_diffs(
+    diff_text: str, diff_pattern: str = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE"
+) -> List[Tuple[str, str]]:
     """
     Extract diff blocks from the diff text
 
     Args:
         diff_text: Diff in the SEARCH/REPLACE format
+        diff_pattern: Regex pattern for the SEARCH/REPLACE format
 
     Returns:
         List of tuples (search_text, replace_text)
     """
-    diff_pattern = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE"
     diff_blocks = re.findall(diff_pattern, diff_text, re.DOTALL)
     return [(match[0].rstrip(), match[1].rstrip()) for match in diff_blocks]
 

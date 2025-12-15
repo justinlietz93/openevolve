@@ -400,6 +400,7 @@ class Config:
     # Evolution settings
     diff_based_evolution: bool = True
     max_code_length: int = 10000
+    diff_pattern: str = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE"
 
     # Early stopping settings
     early_stopping_patience: Optional[int] = None
@@ -451,6 +452,13 @@ class Config:
             config.evaluator = EvaluatorConfig(**config_dict["evaluator"])
         if "evolution_trace" in config_dict:
             config.evolution_trace = EvolutionTraceConfig(**config_dict["evolution_trace"])
+        if "diff_pattern" in config_dict:
+            # Validate it's a valid regex
+            try:
+                re.compile(config_dict["diff_pattern"])
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern in diff_pattern: {e}")
+            config.diff_pattern = config_dict["diff_pattern"]
 
         return config
 

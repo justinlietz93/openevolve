@@ -90,7 +90,7 @@ class OpenAILLM(LLMInterface):
         # Check if this is an OpenAI reasoning model based on model name pattern
         # This works for all endpoints (OpenAI, Azure, OptiLLM, OpenRouter, etc.)
         model_lower = str(self.model).lower()
-        is_openai_reasoning_model = model_lower.startswith(OPENAI_REASONING_MODEL_PREFIXES) 
+        is_openai_reasoning_model = model_lower.startswith(OPENAI_REASONING_MODEL_PREFIXES)
 
         if is_openai_reasoning_model:
             # For OpenAI reasoning models
