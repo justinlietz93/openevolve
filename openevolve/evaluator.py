@@ -192,7 +192,7 @@ class Evaluator:
 
                     # Combine metrics
                     llm_scores = []
-                    for name, value in llm_result.metrics.items():
+                    for name, value in llm_eval_result.metrics.items():
                         weighted_value = value * self.config.llm_feedback_weight
                         eval_result.metrics[f"llm_{name}"] = weighted_value
                         llm_scores.append(value)  # Use unweighted value for average
