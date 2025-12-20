@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
+import dacite
 import yaml
 
 if TYPE_CHECKING:
@@ -418,46 +419,20 @@ class Config:
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> "Config":
-        """Create configuration from a dictionary"""
-        # Handle nested configurations
-        config = Config()
-
-        # Update top-level fields
-        for key, value in config_dict.items():
-            if key not in ["llm", "prompt", "database", "evaluator", "evolution_trace"] and hasattr(
-                config, key
-            ):
-                setattr(config, key, value)
-
-        # Update nested configs
-        if "llm" in config_dict:
-            llm_dict = config_dict["llm"]
-            if "models" in llm_dict:
-                llm_dict["models"] = [LLMModelConfig(**m) for m in llm_dict["models"]]
-            if "evaluator_models" in llm_dict:
-                llm_dict["evaluator_models"] = [
-                    LLMModelConfig(**m) for m in llm_dict["evaluator_models"]
-                ]
-            config.llm = LLMConfig(**llm_dict)
-        if "prompt" in config_dict:
-            config.prompt = PromptConfig(**config_dict["prompt"])
-        if "database" in config_dict:
-            config.database = DatabaseConfig(**config_dict["database"])
-
-        # Ensure database inherits the random seed if not explicitly set
-        if config.database.random_seed is None and config.random_seed is not None:
-            config.database.random_seed = config.random_seed
-        if "evaluator" in config_dict:
-            config.evaluator = EvaluatorConfig(**config_dict["evaluator"])
-        if "evolution_trace" in config_dict:
-            config.evolution_trace = EvolutionTraceConfig(**config_dict["evolution_trace"])
         if "diff_pattern" in config_dict:
-            # Validate it's a valid regex
             try:
                 re.compile(config_dict["diff_pattern"])
             except re.error as e:
                 raise ValueError(f"Invalid regex pattern in diff_pattern: {e}")
-            config.diff_pattern = config_dict["diff_pattern"]
+
+        config: Config = dacite.from_dict(
+            data_class=cls,
+            data=config_dict,
+            config=dacite.Config(cast=[List, Union], forward_references={"LLMInterface": Any}),
+        )
+
+        if config.database.random_seed is None and config.random_seed is not None:
+            config.database.random_seed = config.random_seed
 
         return config
 
