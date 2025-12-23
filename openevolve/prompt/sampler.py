@@ -205,11 +205,13 @@ class PromptSampler:
         # Note feature exploration (not good/bad, just informational)
         if feature_dimensions:
             feature_coords = format_feature_coordinates(metrics, feature_dimensions)
-            if feature_coords != "No feature coordinates":
+            if feature_coords == "":
+                msg = self.template_manager.get_fragment("no_feature_coordinates")
+            else:
                 msg = self.template_manager.get_fragment(
                     "exploring_region", features=feature_coords
                 )
-                improvement_areas.append(msg)
+            improvement_areas.append(msg)
 
         # Code length check (configurable threshold)
         threshold = (
@@ -245,7 +247,7 @@ class PromptSampler:
 
         for i, program in enumerate(reversed(selected_previous)):
             attempt_number = len(previous_programs) - i
-            changes = program.get("metadata", {}).get("changes", "Unknown changes")
+            changes = program.get("metadata", {}).get("changes", self.template_manager.get_fragment("attempt_unknown_changes"))
 
             # Format performance metrics using safe formatting
             performance_parts = []
@@ -261,7 +263,7 @@ class PromptSampler:
 
             # Determine outcome based on comparison with parent (only numeric metrics)
             parent_metrics = program.get("metadata", {}).get("parent_metrics", {})
-            outcome = "Mixed results"
+            outcome = self.template_manager.get_fragment("attempt_mixed_metrics")
 
             # Safely compare only numeric metrics
             program_metrics = program.get("metrics", {})
@@ -288,9 +290,9 @@ class PromptSampler:
 
             # Determine outcome based on numeric comparisons
             if numeric_comparisons_improved and all(numeric_comparisons_improved):
-                outcome = "Improvement in all metrics"
+                outcome = self.template_manager.get_fragment("attempt_all_metrics_improved")
             elif numeric_comparisons_regressed and all(numeric_comparisons_regressed):
-                outcome = "Regression in all metrics"
+                outcome = self.template_manager.get_fragment("attempt_all_metrics_regressed")
 
             previous_attempts_str += (
                 previous_attempt_template.format(
@@ -320,11 +322,11 @@ class PromptSampler:
                 for name, value in program.get("metrics", {}).items():
                     if isinstance(value, (int, float)):
                         try:
-                            key_features.append(f"Performs well on {name} ({value:.4f})")
+                            key_features.append(self.template_manager.get_fragment("top_program_metrics_prefix") + f" {name} ({value:.4f})")
                         except (ValueError, TypeError):
-                            key_features.append(f"Performs well on {name} ({value})")
+                            key_features.append(self.template_manager.get_fragment("top_program_metrics_prefix") + f" {name} ({value})")
                     else:
-                        key_features.append(f"Performs well on {name} ({value})")
+                        key_features.append(self.template_manager.get_fragment("top_program_metrics_prefix") + f" {name} ({value})")
 
             key_features_str = ", ".join(key_features)
 
@@ -354,7 +356,7 @@ class PromptSampler:
                 # Use random sampling to get diverse programs
                 diverse_programs = random.sample(remaining_programs, num_diverse)
 
-                diverse_programs_str += "\n\n## Diverse Programs\n\n"
+                diverse_programs_str += "\n\n## " + self.template_manager.get_fragment("diverse_programs_title") + "\n\n"
 
                 for i, program in enumerate(diverse_programs):
                     # Use the full program code
@@ -367,7 +369,7 @@ class PromptSampler:
                     key_features = program.get("key_features", [])
                     if not key_features:
                         key_features = [
-                            f"Alternative approach to {name}"
+                            self.template_manager.get_fragment("diverse_program_metrics_prefix") + f" {name}"
                             for name in list(program.get("metrics", {}).keys())[
                                 :2
                             ]  # Just first 2 metrics
@@ -472,21 +474,20 @@ class PromptSampler:
 
         # Check metadata for explicit type markers
         if metadata.get("diverse", False):
-            return "Diverse"
+            return self.template_manager.get_fragment("inspiration_type_diverse")
         if metadata.get("migrant", False):
-            return "Migrant"
+            return self.template_manager.get_fragment("inspiration_type_migrant")
         if metadata.get("random", False):
-            return "Random"
-
+            return self.template_manager.get_fragment("inspiration_type_random")
         # Classify based on score ranges
         if score >= 0.8:
-            return "High-Performer"
+            return self.template_manager.get_fragment("inspiration_type_score_high_performer")
         elif score >= 0.6:
-            return "Alternative"
+            return self.template_manager.get_fragment("inspiration_type_score_alternative")
         elif score >= 0.4:
-            return "Experimental"
+            return self.template_manager.get_fragment("inspiration_type_score_experimental")
         else:
-            return "Exploratory"
+            return self.template_manager.get_fragment("inspiration_type_score_exploratory")
 
     def _extract_unique_features(self, program: Dict[str, Any]) -> str:
         """
@@ -509,42 +510,42 @@ class PromptSampler:
                 and self.config.include_changes_under_chars
                 and len(changes) < self.config.include_changes_under_chars
             ):
-                features.append(f"Modification: {changes}")
+                features.append(self.template_manager.get_fragment("inspiration_changes_prefix").format(changes=changes))
 
         # Analyze metrics for standout characteristics
         metrics = program.get("metrics", {})
         for metric_name, value in metrics.items():
             if isinstance(value, (int, float)):
                 if value >= 0.9:
-                    features.append(f"Excellent {metric_name} ({value:.3f})")
+                    features.append(f"{self.template_manager.get_fragment('inspiration_metrics_excellent').format(metric_name=metric_name, value=value)}")
                 elif value <= 0.3:
-                    features.append(f"Alternative {metric_name} approach")
+                    features.append(f"{self.template_manager.get_fragment('inspiration_metrics_alternative').format(metric_name=metric_name)}")
 
         # Code-based features (simple heuristics)
         code = program.get("code", "")
         if code:
             code_lower = code.lower()
             if "class" in code_lower and "def __init__" in code_lower:
-                features.append("Object-oriented approach")
+                features.append(self.template_manager.get_fragment("inspiration_code_with_class"))
             if "numpy" in code_lower or "np." in code_lower:
-                features.append("NumPy-based implementation")
+                features.append(self.template_manager.get_fragment("inspiration_code_with_numpy"))
             if "for" in code_lower and "while" in code_lower:
-                features.append("Mixed iteration strategies")
+                features.append(self.template_manager.get_fragment("inspiration_code_with_mixed_iteration"))
             if (
                 self.config.concise_implementation_max_lines
                 and len(code.split("\n")) <= self.config.concise_implementation_max_lines
             ):
-                features.append("Concise implementation")
+                features.append(self.template_manager.get_fragment("inspiration_code_with_concise_line"))
             elif (
                 self.config.comprehensive_implementation_min_lines
                 and len(code.split("\n")) >= self.config.comprehensive_implementation_min_lines
             ):
-                features.append("Comprehensive implementation")
+                features.append(self.template_manager.get_fragment("inspiration_code_with_comprehensive_line"))
 
         # Default if no specific features found
         if not features:
             program_type = self._determine_program_type(program)
-            features.append(f"{program_type} approach to the problem")
+            features.append(self.template_manager.get_fragment("inspiration_no_features_postfix").format(program_type=program_type))
 
         # Use num_top_programs as limit for features (similar to how we limit programs)
         feature_limit = self.config.num_top_programs
@@ -587,7 +588,7 @@ class PromptSampler:
             sections.append(f"### {key}\n```\n{content}\n```")
 
         if sections:
-            return "## Last Execution Output\n\n" + "\n\n".join(sections)
+            return "## " + self.template_manager.get_fragment("artifact_title") + "\n\n" + "\n\n".join(sections)
         else:
             return ""
 
