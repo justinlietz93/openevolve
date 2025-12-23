@@ -237,6 +237,8 @@ def evaluate(program_path):
                     "validity": 0.0,
                     "eval_time": float(eval_time),
                     "combined_score": 0.0,
+                    "radius_variance": 0.0,
+                    "spatial_spread": 0.0,
                 },
                 artifacts={
                     "stderr": shape_error,
@@ -249,6 +251,20 @@ def evaluate(program_path):
 
         # Calculate sum
         sum_radii = np.sum(radii) if valid else 0.0
+
+        # Calculate feature metrics for MAP-Elites diversity
+        # radius_variance: normalized variance of radii (0-1)
+        # Max theoretical variance for radii in [0, 0.5] is ~0.0625
+        radius_variance = float(np.var(radii) / 0.0625) if valid else 0.0
+        radius_variance = min(1.0, max(0.0, radius_variance))  # Clamp to [0, 1]
+
+        # spatial_spread: how spread out centers are (0-1)
+        # Based on std of distances from centroid, normalized by max possible (0.5 * sqrt(2))
+        centroid = np.mean(centers, axis=0)
+        distances_from_centroid = np.sqrt(np.sum((centers - centroid) ** 2, axis=1))
+        max_spread = 0.5 * np.sqrt(2)  # Max distance from center to corner
+        spatial_spread = float(np.std(distances_from_centroid) / max_spread) if valid else 0.0
+        spatial_spread = min(1.0, max(0.0, spatial_spread))  # Clamp to [0, 1]
 
         # Make sure reported_sum matches the calculated sum
         sum_mismatch = abs(sum_radii - reported_sum) > 1e-6
@@ -306,6 +322,8 @@ def evaluate(program_path):
                 "validity": float(validity),
                 "eval_time": float(eval_time),
                 "combined_score": float(combined_score),
+                "radius_variance": radius_variance,
+                "spatial_spread": spatial_spread,
             },
             artifacts=artifacts,
         )
@@ -320,6 +338,8 @@ def evaluate(program_path):
                 "validity": 0.0,
                 "eval_time": 600.0,  # Timeout duration
                 "combined_score": 0.0,
+                "radius_variance": 0.0,
+                "spatial_spread": 0.0,
             },
             artifacts={
                 "stderr": error_msg,
@@ -339,6 +359,8 @@ def evaluate(program_path):
                 "validity": 0.0,
                 "eval_time": 0.0,
                 "combined_score": 0.0,
+                "radius_variance": 0.0,
+                "spatial_spread": 0.0,
             },
             artifacts={
                 "stderr": error_msg,
@@ -374,7 +396,7 @@ def evaluate_stage1(program_path):
                 shape_error = f"Invalid shapes: centers={centers.shape}, radii={radii.shape}"
                 print(shape_error)
                 return EvaluationResult(
-                    metrics={"validity": 0.0, "combined_score": 0.0},
+                    metrics={"validity": 0.0, "combined_score": 0.0, "radius_variance": 0.0, "spatial_spread": 0.0},
                     artifacts={
                         "stderr": shape_error,
                         "failure_stage": "stage1_shape_validation",
@@ -388,6 +410,14 @@ def evaluate_stage1(program_path):
 
             # Calculate sum
             actual_sum = np.sum(radii) if valid else 0.0
+
+            # Calculate feature metrics for MAP-Elites diversity
+            radius_variance = float(np.var(radii) / 0.0625) if valid else 0.0
+            radius_variance = min(1.0, max(0.0, radius_variance))
+            centroid = np.mean(centers, axis=0)
+            distances_from_centroid = np.sqrt(np.sum((centers - centroid) ** 2, axis=1))
+            spatial_spread = float(np.std(distances_from_centroid) / (0.5 * np.sqrt(2))) if valid else 0.0
+            spatial_spread = min(1.0, max(0.0, spatial_spread))
 
             # Target from paper
             target = 2.635
@@ -424,6 +454,8 @@ def evaluate_stage1(program_path):
                     "sum_radii": float(actual_sum),
                     "target_ratio": float(actual_sum / target if valid else 0.0),
                     "combined_score": float(combined_score),
+                    "radius_variance": radius_variance,
+                    "spatial_spread": spatial_spread,
                 },
                 artifacts=artifacts,
             )
@@ -432,7 +464,7 @@ def evaluate_stage1(program_path):
             error_msg = f"Stage 1 evaluation timed out: {e}"
             print(error_msg)
             return EvaluationResult(
-                metrics={"validity": 0.0, "combined_score": 0.0},
+                metrics={"validity": 0.0, "combined_score": 0.0, "radius_variance": 0.0, "spatial_spread": 0.0},
                 artifacts={
                     "stderr": error_msg,
                     "failure_stage": "stage1_timeout",
@@ -445,7 +477,7 @@ def evaluate_stage1(program_path):
             print(error_msg)
             print(traceback.format_exc())
             return EvaluationResult(
-                metrics={"validity": 0.0, "combined_score": 0.0},
+                metrics={"validity": 0.0, "combined_score": 0.0, "radius_variance": 0.0, "spatial_spread": 0.0},
                 artifacts={
                     "stderr": error_msg,
                     "traceback": traceback.format_exc(),
@@ -459,7 +491,7 @@ def evaluate_stage1(program_path):
         print(error_msg)
         print(traceback.format_exc())
         return EvaluationResult(
-            metrics={"validity": 0.0, "combined_score": 0.0},
+            metrics={"validity": 0.0, "combined_score": 0.0, "radius_variance": 0.0, "spatial_spread": 0.0},
             artifacts={
                 "stderr": error_msg,
                 "traceback": traceback.format_exc(),
