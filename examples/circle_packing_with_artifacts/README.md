@@ -318,6 +318,45 @@ Target ratio: 0.9997314619131079 (99.97% of AlphaEvolve's result)
 
 This demonstrates that OpenEvolve can successfully reproduce the results from the AlphaEvolve paper on this mathematical optimization problem.
 
+## Fast Convergence with Dual-Model Configuration
+
+Using a dual-model configuration with weighted sampling, OpenEvolve achieves near-optimal results in remarkably few iterations:
+
+![Evolution Plot](evolution_plot.png)
+
+### Configuration
+
+The `config.yaml` uses two Gemini models with different weights:
+- `google/gemini-2.5-flash-lite` (weight: 0.8) - Fast, cost-effective for exploration
+- `google/gemini-2.5-flash` (weight: 0.2) - Higher capability for breakthroughs
+
+```yaml
+llm:
+  models:
+    - name: "google/gemini-2.5-flash-lite"
+      weight: 0.8
+    - name: "google/gemini-2.5-flash"
+      weight: 0.2
+```
+
+### Rapid Convergence
+
+The plot shows the evolution of sum_radii across program versions:
+
+- **Version 0**: Starts at ~0.96 (basic initial program)
+- **Version 6**: First major improvement to ~2.09
+- **Version 21**: Reaches 2.63 (99.8% of target)
+- **Final**: Achieves 2.6304 sum of radii
+
+**Key insight**: OpenEvolve discovers the mathematical optimization approach (using `scipy.optimize.minimize` with SLSQP) by version 21, achieving 99.8% of the AlphaEvolve target in just ~40 program evaluations. The dual-model approach allows rapid exploration with the lighter model while leveraging the more capable model for breakthrough discoveries.
+
+### Why It Works
+
+1. **Artifacts provide rich feedback**: Failed programs return detailed error information (boundary violations, overlaps), helping the LLM quickly correct mistakes
+2. **MAP-Elites diversity**: The feature dimensions (`radius_variance`, `spatial_spread`) maintain diverse solutions in the population
+3. **Island-based evolution**: 4 islands evolve independently, preventing premature convergence
+4. **Efficient model weighting**: 80% lightweight model for broad exploration, 20% capable model for sophisticated solutions
+
 ## Key Observations
 
 The evolution process demonstrated several interesting patterns:
