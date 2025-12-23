@@ -52,51 +52,6 @@ Generation 2 (crossover):
 
 **Key insight**: Evolution discovers correct modules in different individuals and **crossover combines them**. This is the "Building Block Hypothesis" - complex solutions are assembled from simpler discovered components.
 
-## Theoretical Analysis
-
-| Method | Expected Evaluations | Why |
-|--------|---------------------|-----|
-| **Random Search** | ~312 (50% of space) | Pure luck |
-| **Pass@100 (LLM)** | ~100 calls, ~15% success | Independent samples, no learning |
-| **Iterative Refinement** | ~312+ | No gradient, random walk |
-| **Evolution (pop=20)** | ~40-60 | Parallel exploration + crossover |
-
-The gap widens exponentially with more modules:
-- K=5 modules: Iterative ~1,562, Evolution ~70
-- K=6 modules: Iterative ~7,812, Evolution ~90
-
-### Note on Pass@k with Closed Models
-
-The pass@k metric (probability of finding solution in k independent attempts) is commonly used to evaluate LLM capabilities. However:
-
-- **Open models** (local): Can generate k responses in parallel with `n=k` parameter
-- **Closed models** (API): Most don't support `n>1`, requiring k separate API calls
-
-For this comparison, we include a **random baseline** that simulates pass@k without an LLM. This establishes the "no learning" baseline.
-
-### Random Baseline Results (100 trials, 100 samples each)
-
-| Metric | Value |
-|--------|-------|
-| **Success rate (pass@100)** | 16% (16/100 trials found solution) |
-| **Avg samples to solution** | 43.3 (when found) |
-| **Min samples** | 5 (lucky guess) |
-| **Max samples** | 91 |
-
-**Pass@k breakdown:**
-
-| k | Empirical | Theoretical |
-|---|-----------|-------------|
-| 1 | 0% | 0.2% |
-| 10 | 1% | 1.6% |
-| 20 | 4% | 3.2% |
-| 50 | 9% | 7.7% |
-| 100 | 16% | 14.8% |
-
-The empirical results closely match the theoretical prediction `pass@k ≈ 1 - (624/625)^k`.
-
-Any method that beats this baseline is demonstrating actual optimization, not just random sampling.
-
 ## Running the Experiment
 
 ### Prerequisites
@@ -158,6 +113,17 @@ This generates:
 - Summary statistics printed to console
 
 ## Experimental Results
+
+### Random Baseline (100 trials, 100 samples each)
+
+| Metric | Value |
+|--------|-------|
+| **Success rate (pass@100)** | 16% (16/100 trials found solution) |
+| **Avg samples to solution** | 43.3 (when found) |
+| **Min samples** | 5 (lucky guess) |
+| **Max samples** | 91 |
+
+This establishes the "no learning" baseline. Any method that beats this is demonstrating actual optimization, not just random sampling.
 
 ### Iterative Refinement Results (3 trials, 100 iterations max)
 
