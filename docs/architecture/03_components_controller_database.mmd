@@ -1,0 +1,137 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#616161','secondaryColor':'#43a047','tertiaryColor':'#e53935'}}}%%
+
+graph TB
+    %% External
+    USER[User/CLI/API]
+    
+    %% Controller Container
+    subgraph Controller["Controller Container (openevolve.controller)"]
+        
+        %% Main Controller Component
+        CTRL_MAIN[OpenEvolve Class<br/>Main orchestrator<br/>Lifecycle management,<br/>checkpoint coordination]
+        
+        %% Configuration
+        CONFIG[Config System<br/>openevolve.config<br/>YAML parsing, validation,<br/>hierarchical defaults]
+        
+        %% Logging
+        LOG[Logging Setup<br/>Python logging<br/>File + console handlers,<br/>structured output]
+        
+        %% State Management
+        STATE[State Manager<br/>Checkpoint/Resume<br/>Saves/loads full state,<br/>handles interruptions]
+        
+        %% Metrics Tracking
+        METRICS[Metrics Tracker<br/>Best program tracking<br/>Improvement calculation,<br/>convergence detection]
+    end
+    
+    %% Database Container
+    subgraph Database["Database Container (openevolve.database)"]
+        
+        %% Core Database
+        DB_CORE[ProgramDatabase Class<br/>Main storage coordinator<br/>Island management,<br/>grid operations]
+        
+        %% Program Model
+        PROGRAM[Program Dataclass<br/>Domain model<br/>Code, metrics, lineage,<br/>artifacts, embeddings]
+        
+        %% Island System
+        ISLAND[Island Manager<br/>Isolated populations<br/>Independent evolution,<br/>migration coordination]
+        
+        %% MAP-Elites Grid
+        GRID[MAP-Elites Grid<br/>Quality-diversity<br/>Feature discretization,<br/>cell management]
+        
+        %% Selection Strategies
+        SELECT[Selection Engine<br/>Sampling strategies<br/>Elite/diverse/exploratory,<br/>tournament selection]
+        
+        %% Migration Logic
+        MIGRATE[Migration Controller<br/>Ring topology<br/>Generation-based transfer,<br/>duplicate prevention]
+        
+        %% Feature Management
+        FEATURE[Feature Extractor<br/>Dimension calculation<br/>Complexity, diversity,<br/>custom metrics]
+        
+        %% Persistence
+        PERSIST[JSON Serializer<br/>File I/O<br/>Database dump/load,<br/>artifact storage]
+    end
+    
+    %% Process Parallel Container
+    subgraph ProcessPool["Process Pool Container (openevolve.process_parallel)"]
+        
+        POOL_CTRL[ProcessParallelController<br/>Worker orchestration<br/>Process pool management,<br/>task distribution]
+        
+        WORKER[Worker Processes<br/>Iteration execution<br/>DB snapshot loading,<br/>isolated execution]
+        
+        SERIAL[Serializer<br/>Data marshalling<br/>Config/DB serialization,<br/>result collection]
+    end
+    
+    %% External Dependencies
+    FS[File System]
+    PROC_LIB[Python multiprocessing]
+
+    %% User Flow
+    USER -->|Initializes with config| CTRL_MAIN
+    USER -->|Resume from checkpoint| STATE
+    
+    %% Controller Internal
+    CTRL_MAIN -->|Loads configuration| CONFIG
+    CTRL_MAIN -->|Sets up logging| LOG
+    CTRL_MAIN -->|Manages state| STATE
+    CTRL_MAIN -->|Tracks best programs| METRICS
+    CTRL_MAIN -->|Delegates iterations| POOL_CTRL
+    CTRL_MAIN -->|Accesses storage| DB_CORE
+    
+    %% State Management
+    STATE -->|Persists database| PERSIST
+    STATE -->|Saves configuration| CONFIG
+    STATE -->|Writes checkpoint| FS
+    STATE -->|Loads checkpoint| FS
+    
+    %% Database Operations
+    DB_CORE -->|Manages islands| ISLAND
+    DB_CORE -->|Operates grid| GRID
+    DB_CORE -->|Selects programs| SELECT
+    DB_CORE -->|Triggers migration| MIGRATE
+    DB_CORE -->|Computes features| FEATURE
+    DB_CORE -->|Persists state| PERSIST
+    
+    %% Island System
+    ISLAND -->|Maintains| GRID
+    ISLAND -->|Coordinates| MIGRATE
+    MIGRATE -->|Transfers between| ISLAND
+    
+    %% Grid Operations
+    GRID -->|Stores| PROGRAM
+    GRID -->|Uses| FEATURE
+    SELECT -->|Samples from| GRID
+    FEATURE -->|Extracts from| PROGRAM
+    
+    %% Process Pool
+    POOL_CTRL -->|Creates workers| WORKER
+    POOL_CTRL -->|Serializes data| SERIAL
+    SERIAL -->|Packages| DB_CORE
+    SERIAL -->|Packages| CONFIG
+    WORKER -->|Loads snapshot| SERIAL
+    WORKER -->|Uses| PROC_LIB
+    WORKER -->|Returns results to| POOL_CTRL
+    POOL_CTRL -->|Updates| DB_CORE
+    
+    %% Persistence
+    PERSIST -->|Writes JSON| FS
+    PERSIST -->|Reads JSON| FS
+    PERSIST -->|Stores artifacts| FS
+
+    %% Styling
+    classDef controllerClass fill:#1e88e5,stroke:#0d47a1,stroke-width:2px,color:#fff
+    classDef databaseClass fill:#ffa726,stroke:#e65100,stroke-width:2px,color:#000
+    classDef processClass fill:#66bb6a,stroke:#2e7d32,stroke-width:2px,color:#fff
+    classDef externalClass fill:#9e9e9e,stroke:#424242,stroke-width:2px,color:#fff
+    classDef modelClass fill:#ab47bc,stroke:#6a1b9a,stroke-width:2px,color:#fff
+    
+    class USER externalClass
+    class CTRL_MAIN,CONFIG,LOG,STATE,METRICS controllerClass
+    class DB_CORE,GRID,ISLAND,FEATURE,PERSIST,SELECT,MIGRATE databaseClass
+    class PROGRAM modelClass
+    class POOL_CTRL,WORKER,SERIAL processClass
+    class FS,PROC_LIB externalClass
+
+    %% Metadata
+    %% Commit: 1c88c4a3df6032aae4052bb543f44ece15f03901
+    %% Generated: 2025-11-09
+    %% Description: C4 Component diagram for Controller and Database containers

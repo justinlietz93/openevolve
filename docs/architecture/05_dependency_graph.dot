@@ -1,0 +1,218 @@
+// OpenEvolve Module Dependency Graph
+// Commit: 1c88c4a3df6032aae4052bb543f44ece15f03901
+// Generated: 2025-11-09
+// Format: Graphviz DOT
+// Render: dot -Tsvg 05_dependency_graph.dot -o assets/05_dependency_graph.svg
+
+digraph openevolve_dependencies {
+    // Graph attributes
+    rankdir=TB;
+    ranksep=1.5;
+    nodesep=0.8;
+    bgcolor="white";
+    fontname="Arial";
+    fontsize=12;
+    
+    // Node styling
+    node [
+        shape=box,
+        style="rounded,filled",
+        fontname="Arial",
+        fontsize=10,
+        margin=0.2
+    ];
+    
+    // Edge styling
+    edge [
+        color="#666666",
+        arrowsize=0.7,
+        fontname="Arial",
+        fontsize=8
+    ];
+    
+    // Layer 0: Pure utilities (no dependencies)
+    subgraph cluster_layer0 {
+        label="Layer 0: Pure Utilities";
+        style=filled;
+        color="#e8f5e9";
+        
+        "evaluation_result" [fillcolor="#c8e6c9", label="evaluation_result\n(Data Model)"];
+        "llm.base" [fillcolor="#c8e6c9", label="llm.base\n(Interface)"];
+        "utils.*" [fillcolor="#c8e6c9", label="utils.*\n(Utilities)"];
+        "_version" [fillcolor="#c8e6c9", label="_version\n(Metadata)"];
+    }
+    
+    // Layer 1: Configuration
+    subgraph cluster_layer1 {
+        label="Layer 1: Configuration";
+        style=filled;
+        color="#e3f2fd";
+        
+        "config" [fillcolor="#90caf9", label="config\n(356 LOC)"];
+    }
+    
+    // Layer 2: External integrations
+    subgraph cluster_layer2 {
+        label="Layer 2: External Services";
+        style=filled;
+        color="#fff3e0";
+        
+        "embedding" [fillcolor="#ffcc80", label="embedding\n(76 LOC)"];
+        "llm.openai" [fillcolor="#ffcc80", label="llm.openai\n(143 LOC)"];
+        "llm.ensemble" [fillcolor="#ffcc80", label="llm.ensemble\n(70 LOC)"];
+        "novelty_judge" [fillcolor="#ffcc80", label="novelty_judge\n(31 LOC)"];
+    }
+    
+    // Layer 3: Core storage
+    subgraph cluster_layer3 {
+        label="Layer 3: Storage & Data";
+        style=filled;
+        color="#fce4ec";
+        
+        "database" [fillcolor="#f48fb1", label="database\n(1765 LOC)\nMAP-Elites"];
+        "evolution_trace" [fillcolor="#f48fb1", label="evolution_trace\n(422 LOC)"];
+    }
+    
+    // Layer 4: Prompt system
+    subgraph cluster_layer4 {
+        label="Layer 4: Prompt Engineering";
+        style=filled;
+        color="#f3e5f5";
+        
+        "prompt.templates" [fillcolor="#ce93d8", label="prompt.templates\n(154 LOC)"];
+        "prompt.sampler" [fillcolor="#ce93d8", label="prompt.sampler\n(479 LOC)"];
+    }
+    
+    // Layer 5: Evaluation
+    subgraph cluster_layer5 {
+        label="Layer 5: Evaluation";
+        style=filled;
+        color="#e0f2f1";
+        
+        "evaluator" [fillcolor="#80cbc4", label="evaluator\n(537 LOC)\nCascade"];
+    }
+    
+    // Layer 6: Execution
+    subgraph cluster_layer6 {
+        label="Layer 6: Parallel Execution";
+        style=filled;
+        color="#fff9c4";
+        
+        "iteration" [fillcolor="#fff59d", label="iteration\n(120 LOC)"];
+        "process_parallel" [fillcolor="#fff59d", label="process_parallel\n(530 LOC)"];
+    }
+    
+    // Layer 7: Orchestration
+    subgraph cluster_layer7 {
+        label="Layer 7: Orchestration";
+        style=filled;
+        color="#e1bee7";
+        
+        "controller" [fillcolor="#ba68c8", label="controller\n(431 LOC)\nMain Loop"];
+    }
+    
+    // Layer 8: API
+    subgraph cluster_layer8 {
+        label="Layer 8: Public API";
+        style=filled;
+        color="#c5cae9";
+        
+        "api" [fillcolor="#9fa8da", label="api\n(411 LOC)"];
+        "cli" [fillcolor="#9fa8da", label="cli\n(134 LOC)"];
+    }
+    
+    // Dependencies - Layer 1
+    "config" -> "llm.base" [label="imports"];
+    
+    // Dependencies - Layer 2
+    "embedding" -> "config";
+    "llm.openai" -> "config";
+    "llm.openai" -> "llm.base";
+    "llm.ensemble" -> "config";
+    "llm.ensemble" -> "llm.base";
+    "llm.ensemble" -> "llm.openai";
+    
+    // Dependencies - Layer 3
+    "database" -> "config";
+    "database" -> "embedding";
+    "database" -> "novelty_judge";
+    "database" -> "utils.*";
+    "evolution_trace" -> "utils.*";
+    
+    // Dependencies - Layer 4
+    "prompt.sampler" -> "config";
+    "prompt.sampler" -> "prompt.templates";
+    "prompt.sampler" -> "utils.*";
+    
+    // Dependencies - Layer 5
+    "evaluator" -> "config";
+    "evaluator" -> "database";
+    "evaluator" -> "evaluation_result";
+    "evaluator" -> "llm.ensemble";
+    "evaluator" -> "prompt.sampler";
+    "evaluator" -> "utils.*";
+    
+    // Dependencies - Layer 6
+    "iteration" -> "config";
+    "iteration" -> "database";
+    "iteration" -> "evaluator";
+    "iteration" -> "llm.ensemble";
+    "iteration" -> "prompt.sampler";
+    "iteration" -> "utils.*";
+    
+    "process_parallel" -> "config";
+    "process_parallel" -> "database";
+    "process_parallel" -> "evaluator";
+    "process_parallel" -> "llm.ensemble";
+    "process_parallel" -> "prompt.sampler";
+    "process_parallel" -> "utils.*";
+    
+    // Dependencies - Layer 7
+    "controller" -> "config";
+    "controller" -> "database";
+    "controller" -> "evaluator";
+    "controller" -> "evolution_trace";
+    "controller" -> "llm.ensemble";
+    "controller" -> "process_parallel";
+    "controller" -> "prompt.sampler";
+    "controller" -> "utils.*";
+    
+    // Dependencies - Layer 8
+    "api" -> "config";
+    "api" -> "controller";
+    "api" -> "database";
+    
+    "cli" -> "config";
+    "cli" -> "controller";
+    
+    // Legend
+    subgraph cluster_legend {
+        label="Legend";
+        style=filled;
+        color="#f5f5f5";
+        
+        legend_util [fillcolor="#c8e6c9", label="Utilities/Base"];
+        legend_config [fillcolor="#90caf9", label="Configuration"];
+        legend_external [fillcolor="#ffcc80", label="External"];
+        legend_storage [fillcolor="#f48fb1", label="Storage"];
+        legend_prompt [fillcolor="#ce93d8", label="Prompting"];
+        legend_eval [fillcolor="#80cbc4", label="Evaluation"];
+        legend_exec [fillcolor="#fff59d", label="Execution"];
+        legend_ctrl [fillcolor="#ba68c8", label="Control"];
+        legend_api [fillcolor="#9fa8da", label="API"];
+        
+        legend_util -> legend_config [style=invis];
+        legend_config -> legend_external [style=invis];
+        legend_external -> legend_storage [style=invis];
+        legend_storage -> legend_prompt [style=invis];
+        legend_prompt -> legend_eval [style=invis];
+        legend_eval -> legend_exec [style=invis];
+        legend_exec -> legend_ctrl [style=invis];
+        legend_ctrl -> legend_api [style=invis];
+    }
+    
+    // Metrics
+    label="\n\nOpenEvolve Dependency Graph\nTotal Modules: 20 | Total Dependencies: 50 | Cycles: 0\nAvg Dependencies per Module: 3.1";
+    labelloc="b";
+    fontsize=14;
+}
