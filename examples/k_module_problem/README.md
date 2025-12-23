@@ -52,51 +52,6 @@ Generation 2 (crossover):
 
 **Key insight**: Evolution discovers correct modules in different individuals and **crossover combines them**. This is the "Building Block Hypothesis" - complex solutions are assembled from simpler discovered components.
 
-## Theoretical Analysis
-
-| Method | Expected Evaluations | Why |
-|--------|---------------------|-----|
-| **Random Search** | ~312 (50% of space) | Pure luck |
-| **Pass@100 (LLM)** | ~100 calls, ~15% success | Independent samples, no learning |
-| **Iterative Refinement** | ~312+ | No gradient, random walk |
-| **Evolution (pop=20)** | ~40-60 | Parallel exploration + crossover |
-
-The gap widens exponentially with more modules:
-- K=5 modules: Iterative ~1,562, Evolution ~70
-- K=6 modules: Iterative ~7,812, Evolution ~90
-
-### Note on Pass@k with Closed Models
-
-The pass@k metric (probability of finding solution in k independent attempts) is commonly used to evaluate LLM capabilities. However:
-
-- **Open models** (local): Can generate k responses in parallel with `n=k` parameter
-- **Closed models** (API): Most don't support `n>1`, requiring k separate API calls
-
-For this comparison, we include a **random baseline** that simulates pass@k without an LLM. This establishes the "no learning" baseline.
-
-### Random Baseline Results (100 trials, 100 samples each)
-
-| Metric | Value |
-|--------|-------|
-| **Success rate (pass@100)** | 16% (16/100 trials found solution) |
-| **Avg samples to solution** | 43.3 (when found) |
-| **Min samples** | 5 (lucky guess) |
-| **Max samples** | 91 |
-
-**Pass@k breakdown:**
-
-| k | Empirical | Theoretical |
-|---|-----------|-------------|
-| 1 | 0% | 0.2% |
-| 10 | 1% | 1.6% |
-| 20 | 4% | 3.2% |
-| 50 | 9% | 7.7% |
-| 100 | 16% | 14.8% |
-
-The empirical results closely match the theoretical prediction `pass@k ≈ 1 - (624/625)^k`.
-
-Any method that beats this baseline is demonstrating actual optimization, not just random sampling.
-
 ## Running the Experiment
 
 ### Prerequisites
@@ -159,6 +114,17 @@ This generates:
 
 ## Experimental Results
 
+### Random Baseline (100 trials, 100 samples each)
+
+| Metric | Value |
+|--------|-------|
+| **Success rate (pass@100)** | 16% (16/100 trials found solution) |
+| **Avg samples to solution** | 43.3 (when found) |
+| **Min samples** | 5 (lucky guess) |
+| **Max samples** | 91 |
+
+This establishes the "no learning" baseline. Any method that beats this is demonstrating actual optimization, not just random sampling.
+
 ### Iterative Refinement Results (3 trials, 100 iterations max)
 
 | Trial | Iterations | Result | Best Score |
@@ -174,31 +140,31 @@ This generates:
 
 **Key observation**: The iterative agent repeatedly finds configurations with 3/4 correct modules (`csv_reader`, `quicksort`, `json`) but cannot identify that `preprocess` is the wrong module. It keeps cycling through variations without escaping this local optimum.
 
-### OpenEvolve (Evolutionary) Results
+### OpenEvolve (Evolutionary) Results (3 trials, 100 iterations max)
 
-| Trial | Iterations | Result | Best Score | Notes |
-|-------|------------|--------|------------|-------|
-| 1 | 21 | SUCCESS | 100% (4/4) | Solution found through population diversity |
+| Trial | Iterations | Result | Best Score |
+|-------|------------|--------|------------|
+| 1 | 18 | SUCCESS | 100% (4/4) |
+| 2 | 50 | SUCCESS | 100% (4/4) |
+| 3 | 89 | SUCCESS | 100% (4/4) |
 
 **Summary:**
-- **Success rate**: 100% (1/1 trial found solution)
-- **Solution found at**: Iteration 21
-- **Key observation**: OpenEvolve's population-based approach explores multiple configurations in parallel. By iteration 9, the population already had diverse configurations, and by iteration 21, the correct combination was discovered.
+- **Success rate**: 100% (3/3 trials found solution)
+- **Avg iterations to solution**: 52.3
+- **Min iterations**: 18
+- **Max iterations**: 89
 
-**Progression:**
-- Iteration 3: 25% (1/4) - Initial exploration
-- Iteration 9: 50% (2/4) - Multiple 50% configs in population
-- Iteration 21: 100% (4/4) - csv_reader, normalize, quicksort, json - PERFECT!
-
-**Key advantage**: OpenEvolve's prompt encourages systematic exploration ("try DIFFERENT options for EACH module") rather than following potentially misleading hints. Combined with higher temperature (0.9), larger population (25), and more frequent migration, this leads to faster discovery.
+**Key advantage**: OpenEvolve's population-based approach maintains diverse configurations that explore different module combinations in parallel. Even when some individuals get stuck at local optima (75% with wrong preprocessing), others explore alternatives and eventually discover the correct solution.
 
 ### Comparison Summary
 
-| Method | Success Rate | Evaluations to Solution | Key Limitation |
-|--------|-------------|------------------------|----------------|
-| **Random Baseline** | 16% | 43.3 avg (when found) | No learning |
-| **Iterative Refinement** | 33% | 13 (when found) | Gets stuck at 75%, can't escape local optima |
-| **OpenEvolve** | 100% | 21 | Population diversity + systematic exploration |
+| Method | Success Rate | Avg Iterations | Key Finding |
+|--------|-------------|----------------|-------------|
+| **Random Baseline** | 16% | 43.3 (when found) | No learning baseline |
+| **Iterative Refinement** | 33% (1/3) | 13 (when found) | Gets stuck at 75% local optimum |
+| **OpenEvolve** | **100% (3/3)** | 52.3 | Always finds solution |
+
+**Key insight**: While OpenEvolve takes more iterations on average (52.3 vs 13), it has a **100% success rate** compared to iterative refinement's 33%. The evolutionary approach's population diversity ensures it eventually escapes local optima that trap single-trajectory methods.
 
 ## Why This Matters
 
@@ -224,6 +190,7 @@ Real-world examples:
 | `config.yaml` | OpenEvolve configuration |
 | `iterative_agent.py` | Iterative refinement agent using OpenRouter API |
 | `run_iterative_trials.py` | Run multiple trials of iterative agent |
+| `run_openevolve_trials.py` | Run multiple trials of OpenEvolve |
 | `run_random_baseline.py` | Random search baseline with pass@k analysis |
 | `compare_results.py` | Analysis and visualization |
 
