@@ -81,7 +81,7 @@ evaluator:
   use_llm_feedback: false
   enable_artifacts: true
 
-# Early stopping - stop when we find the solution
-early_stopping_patience: 30  # Reduced - expect faster convergence
+# Early stopping - disabled to allow full exploration
+early_stopping_patience: 100  # Allow full run
 convergence_threshold: 0.001
 early_stopping_metric: "combined_score"
