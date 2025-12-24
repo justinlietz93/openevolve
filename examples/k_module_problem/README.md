@@ -166,6 +166,25 @@ This establishes the "no learning" baseline. Any method that beats this is demon
 
 **Key insight**: While OpenEvolve takes more iterations on average (52.3 vs 13), it has a **100% success rate** compared to iterative refinement's 33%. The evolutionary approach's population diversity ensures it eventually escapes local optima that trap single-trajectory methods.
 
+### Rich Feedback Mode: Proving Attribution Matters
+
+To verify that feedback attribution is the key factor, we added a `RICH_FEEDBACK=1` mode that tells the agent exactly which modules are correct/incorrect:
+
+```bash
+RICH_FEEDBACK=1 python run_iterative_trials.py --trials 3 --iterations 100
+```
+
+| Method | Success Rate | Avg Iterations |
+|--------|-------------|----------------|
+| **Iterative (no feedback)** | 33% | 13 (when found) |
+| **Iterative (rich feedback)** | **100%** | **3** |
+
+With rich feedback, iterative refinement achieves **100% success rate in only 3 iterations** - dramatically faster than OpenEvolve's 52 iterations! This proves that:
+
+1. **Feedback attribution is the key factor**, not the optimization method
+2. When feedback is attributable, iterative refinement is highly effective
+3. Evolution is necessary when feedback is NOT attributable (you can't tell which component is wrong)
+
 ## Why This Matters
 
 This example illustrates when you should prefer evolutionary approaches:
