@@ -9,12 +9,20 @@ not WHICH ones are correct.
 This creates a challenging landscape for iterative refinement but
 allows evolutionary crossover to combine good "building blocks"
 from different individuals.
+
+Set RICH_FEEDBACK=1 to enable rich feedback mode, which tells you
+exactly which modules are correct/incorrect. This demonstrates that
+iterative refinement works well when feedback is attributable.
 """
 
+import os
 import sys
 import time
 import traceback
 import importlib.util
+
+# Rich feedback mode - when enabled, reveals which modules are correct
+RICH_FEEDBACK = os.environ.get("RICH_FEEDBACK", "0") == "1"
 
 # The correct solution (hidden from the optimizer)
 # This represents the "optimal" pipeline configuration discovered through
@@ -141,13 +149,33 @@ def score_config(config: dict) -> tuple:
 
 def build_artifacts(config: dict, correct_count: int, module_results: dict, eval_time: float) -> dict:
     """
-    Build artifacts that provide useful feedback without revealing
-    exactly which modules are correct.
+    Build artifacts that provide useful feedback.
+
+    In normal mode: Only reveals how many modules are correct, not which ones.
+    In rich feedback mode (RICH_FEEDBACK=1): Reveals exactly which modules are correct/incorrect.
     """
     artifacts = {}
 
     # Configuration summary
     artifacts["configuration"] = str(config)
+
+    # Rich feedback mode - reveals which modules are correct/incorrect
+    if RICH_FEEDBACK:
+        correct_modules = [m for m, is_correct in module_results.items() if is_correct]
+        incorrect_modules = [m for m, is_correct in module_results.items() if not is_correct]
+
+        artifacts["module_feedback"] = {
+            "correct": correct_modules,
+            "incorrect": incorrect_modules,
+        }
+
+        if incorrect_modules:
+            hints = []
+            for module in incorrect_modules:
+                hints.append(f"'{module}' is WRONG - try a different option from {VALID_OPTIONS[module]}")
+            artifacts["actionable_hints"] = hints
+        else:
+            artifacts["actionable_hints"] = ["All modules are correct!"]
 
     # Score feedback - tells you how many are correct, but not which ones
     if correct_count == NUM_MODULES:

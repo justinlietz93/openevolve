@@ -64,6 +64,26 @@ def write_program(program_path: str, code: str) -> None:
         f.write(code)
 
 
+def format_rich_feedback(artifacts: dict) -> str:
+    """Format rich feedback if available (RICH_FEEDBACK=1)."""
+    if "module_feedback" not in artifacts:
+        return ""
+
+    feedback = artifacts["module_feedback"]
+    hints = artifacts.get("actionable_hints", [])
+
+    result = "\n## DETAILED MODULE FEEDBACK (Rich Feedback Mode)\n"
+    result += f"- CORRECT modules: {feedback.get('correct', [])}\n"
+    result += f"- INCORRECT modules: {feedback.get('incorrect', [])}\n"
+
+    if hints:
+        result += "\n### Actionable Hints:\n"
+        for hint in hints:
+            result += f"- {hint}\n"
+
+    return result
+
+
 def create_improvement_prompt(
     current_code: str,
     metrics: dict,
@@ -108,6 +128,7 @@ Find the correct configuration for a 4-component pipeline. Each module has 5 opt
 - Score: {metrics.get('combined_score', 0):.2%}
 - Status: {artifacts.get('status', 'N/A')}
 - Suggestion: {artifacts.get('suggestion', 'N/A')}
+{format_rich_feedback(artifacts)}
 {history_str}
 
 ## Your Task
@@ -205,7 +226,11 @@ def run_iterative_refinement(
 
         # Evaluate current program
         eval_result = evaluate(str(current_program_path))
-        metrics = eval_result.get("metrics", {})
+        # Handle both flat (success) and nested (error) return formats
+        if "metrics" in eval_result:
+            metrics = eval_result["metrics"]
+        else:
+            metrics = {k: v for k, v in eval_result.items() if k != "artifacts"}
         artifacts = eval_result.get("artifacts", {})
 
         score = metrics.get("combined_score", 0)
