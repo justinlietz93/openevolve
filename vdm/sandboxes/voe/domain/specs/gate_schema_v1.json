@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "vdm://schemas/gate.v1.json",
+  "title": "VDM Gate Specification",
+  "description": "Defines hard constraints and soft objectives for code evaluation",
+  "type": "object",
+  "required": ["name", "version", "hard_gates"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Benchmark identifier"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version"
+    },
+    "hard_gates": {
+      "type": "array",
+      "description": "Required constraints that must pass",
+      "items": {
+        "type": "object",
+        "required": ["metric", "op", "value"],
+        "properties": {
+          "metric": {
+            "type": "string",
+            "description": "Metric name to evaluate"
+          },
+          "op": {
+            "type": "string",
+            "enum": ["==", "!=", "<", "<=", ">", ">="],
+            "description": "Comparison operator"
+          },
+          "value": {
+            "type": "number",
+            "description": "Threshold value"
+          }
+        }
+      }
+    },
+    "soft_objectives": {
+      "type": "array",
+      "description": "Optimization objectives for Pareto ranking",
+      "items": {
+        "type": "object",
+        "required": ["metric", "goal"],
+        "properties": {
+          "metric": {
+            "type": "string",
+            "description": "Metric to optimize"
+          },
+          "goal": {
+            "type": "string",
+            "enum": ["min", "max"],
+            "description": "Optimization direction"
+          }
+        }
+      }
+    },
+    "hidden_holdouts": {
+      "type": "object",
+      "description": "Hidden test configuration",
+      "properties": {
+        "seed_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of hidden test seeds"
+        },
+        "distribution": {
+          "type": "string",
+          "description": "Distribution type (private or public spec)"
+        }
+      }
+    },
+    "allowlists": {
+      "type": "object",
+      "description": "Security allowlists",
+      "properties": {
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Allowed programming languages"
+        },
+        "libs": {
+          "type": "object",
+          "description": "Allowed libraries per language",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "syscalls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Allowed system calls"
+        }
+      }
+    }
+  }
+}

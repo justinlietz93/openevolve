@@ -1,0 +1,46 @@
+{
+  "$schema": "vdm://schemas/gate.v1.json",
+  "name": "vdm-reaction-diffusion-validation",
+  "version": "1.0.0",
+  "description": "Fisher-KPP reaction-diffusion validation",
+  "hard_gates": [
+    {
+      "metric": "rd_front_speed_rel_err",
+      "op": "<=",
+      "value": 0.05,
+      "description": "Front speed relative error: |c_measured - 2√(Dr)| / 2√(Dr) ≤ 0.05"
+    },
+    {
+      "metric": "rd_front_r2",
+      "op": ">=",
+      "value": 0.98,
+      "description": "Front position linear fit: R² ≥ 0.98"
+    },
+    {
+      "metric": "rd_dispersion_med_rel_err",
+      "op": "<=",
+      "value": 0.10,
+      "description": "Dispersion median relative error: med(|σ - (r - Dk²)|) ≤ 0.10"
+    },
+    {
+      "metric": "rd_dispersion_r2",
+      "op": ">=",
+      "value": 0.98,
+      "description": "Dispersion array fit quality: R² ≥ 0.98"
+    }
+  ],
+  "soft_objectives": [
+    {
+      "metric": "front_width",
+      "goal": "min",
+      "description": "Minimize front width for sharper transitions"
+    }
+  ],
+  "allowlists": {
+    "languages": ["python", "cpp"],
+    "libs": {
+      "python": ["numpy==1.26.4", "scipy==1.11.4"],
+      "cpp": ["eigen3"]
+    }
+  }
+}

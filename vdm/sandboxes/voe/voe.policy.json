@@ -1,0 +1,20 @@
+{
+  "hardware": {
+    "accel": "ROCm",
+    "gpus": "auto"
+  },
+  "sandbox": {
+    "network": "deny",
+    "seccomp": "strict",
+    "monotonic_time": true
+  },
+  "fs": {
+    "candidate_write": ["/workspace/candidate"],
+    "readonly": ["/*"]
+  },
+  "limits": {
+    "cpu_seconds": 60,
+    "rss_mb": 1024,
+    "procs": 1
+  }
+}
