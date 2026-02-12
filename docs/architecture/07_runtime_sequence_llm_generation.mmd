@@ -1,0 +1,106 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#616161','actorBorder':'#0d47a1','actorBkg':'#90caf9','actorTextColor':'#000','signalColor':'#424242','signalTextColor':'#000','labelBoxBkgColor':'#e3f2fd','labelBoxBorderColor':'#1976d2','labelTextColor':'#000','loopTextColor':'#000','noteBorderColor':'#ff9800','noteBkgColor':'#fff3e0','noteTextColor':'#000'}}}%%
+
+sequenceDiagram
+    autonumber
+    
+    participant WKR as Iteration Worker
+    participant ENS as LLM Ensemble
+    participant SMPL as Prompt Sampler
+    participant TMPL as Template Manager
+    participant DB as Database
+    participant SEL as Model Selector
+    participant CLI as OpenAI Client
+    participant API as LLM API (External)
+    
+    Note over WKR,API: LLM Generation with Retry & Fallback
+    
+    WKR->>+ENS: generate_mutation(parent_prog, inspiration)
+    
+    ENS->>+SMPL: build_prompt(parent, inspiration, artifacts)
+    
+    Note over SMPL,DB: Prompt Construction
+    SMPL->>TMPL: get_template("mutation")
+    TMPL-->>SMPL: template_string
+    
+    SMPL->>SMPL: Extract EVOLVE-BLOCK regions
+    
+    SMPL->>DB: get_top_programs(n=3)
+    DB-->>SMPL: [prog1, prog2, prog3]
+    
+    SMPL->>DB: get_diverse_programs(n=2)
+    DB-->>SMPL: [prog4, prog5]
+    
+    SMPL->>DB: get_artifacts(parent_id)
+    Note right of DB: Artifacts include:<br/>- stderr output<br/>- build warnings<br/>- profiling data<br/>- LLM feedback
+    DB-->>SMPL: artifacts_dict
+    
+    SMPL->>SMPL: Format inspiration programs
+    SMPL->>SMPL: Format artifacts
+    SMPL->>SMPL: Identify improvement areas
+    
+    alt Template stochasticity enabled
+        SMPL->>SMPL: Select random variations
+        Note right of SMPL: Randomizes:<br/>- Greeting text<br/>- Suggestion style<br/>- Example format
+    end
+    
+    SMPL->>SMPL: Assemble final prompt
+    SMPL-->>-ENS: complete_prompt (system + user)
+    
+    Note over ENS,API: Model Selection & Execution
+    ENS->>+SEL: select_model(temperature=0.7)
+    
+    SEL->>SEL: Weighted random selection
+    Note right of SEL: Weights from config:<br/>- gemini-2.5-pro: 0.6<br/>- gemini-2.5-flash: 0.4
+    SEL-->>-ENS: selected_model_config
+    
+    ENS->>+CLI: generate(prompt, model_config)
+    
+    loop Retry with exponential backoff (max 3 attempts)
+        CLI->>CLI: Prepare API request
+        
+        alt o-series model
+            CLI->>CLI: Add reasoning_effort param
+        end
+        
+        CLI->>+API: POST /v1/chat/completions
+        Note right of API: Headers:<br/>- Authorization: Bearer <key><br/>- Content-Type: application/json
+        
+        alt Success (200 OK)
+            API-->>CLI: {choices: [{message: {content: code}}]}
+            CLI->>CLI: Extract code from response
+            CLI->>CLI: Parse EVOLVE-BLOCK
+            CLI-->>-ENS: mutated_code
+            ENS-->>-WKR: mutated_code (SUCCESS)
+        else Rate limit (429)
+            API-->>CLI: {error: "rate_limit_exceeded"}
+            CLI->>CLI: Wait exponentially (1s, 2s, 4s)
+            Note right of CLI: Retry attempt 2/3
+        else API error (500)
+            API-->>CLI: {error: "internal_server_error"}
+            CLI->>CLI: Wait exponentially
+            Note right of CLI: Retry attempt 3/3
+        end
+    end
+    
+    alt All retries exhausted
+        CLI-->>-ENS: FAILURE (primary model)
+        
+        Note over ENS,API: Fallback to next model
+        ENS->>SEL: select_fallback_model()
+        SEL-->>ENS: fallback_model_config
+        
+        ENS->>+CLI: generate(prompt, fallback_model)
+        CLI->>+API: POST /v1/chat/completions
+        
+        alt Fallback succeeds
+            API-->>CLI: {choices: [{message: {content: code}}]}
+            CLI-->>-ENS: mutated_code
+            ENS-->>WKR: mutated_code (FALLBACK SUCCESS)
+        else Fallback fails
+            API-->>CLI: {error: "..."}
+            CLI-->>-ENS: FAILURE (fallback)
+            ENS-->>WKR: ERROR: All models failed
+        end
+    end
+    
+    Note over WKR,API: Typical latencies:<br/>- Prompt building: 10-50ms<br/>- API call: 2-10s (model dependent)<br/>- Parsing: 5-20ms<br/>- Total: 2-12s per generation
