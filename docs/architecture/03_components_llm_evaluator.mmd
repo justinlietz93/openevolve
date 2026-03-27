@@ -1,0 +1,134 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#616161','secondaryColor':'#43a047','tertiaryColor':'#e53935'}}}%%
+
+graph TB
+    %% External
+    WORKER[Iteration Worker]
+    
+    %% LLM Container
+    subgraph LLM["LLM Container (openevolve.llm)"]
+        
+        %% Ensemble Coordinator
+        ENSEMBLE[LLMEnsemble Class<br/>Multi-model coordinator<br/>Weighted selection,<br/>fallback orchestration]
+        
+        %% Model Implementations
+        OPENAI[OpenAILLM Class<br/>OpenAI-compatible client<br/>Async generation,<br/>streaming support]
+        
+        %% Interface
+        INTERFACE[LLMInterface ABC<br/>Abstract base<br/>Common contract,<br/>polymorphism]
+        
+        %% Retry Logic
+        RETRY[Retry Controller<br/>Exponential backoff<br/>Error handling,<br/>timeout management]
+        
+        %% Model Selection
+        SELECTOR[Model Selector<br/>Weighted sampling<br/>Temperature-based,<br/>load balancing]
+    end
+    
+    %% Prompt Container
+    subgraph Prompt["Prompt Container (openevolve.prompt)"]
+        
+        %% Main Sampler
+        SAMPLER[PromptSampler Class<br/>Context builder<br/>Inspiration selection,<br/>artifact inclusion]
+        
+        %% Template System
+        TEMPLATE[TemplateManager Class<br/>Template engine<br/>Jinja-like placeholders,<br/>stochastic variations]
+        
+        %% Template Storage
+        TMPL_STORE[Template Store<br/>File-based<br/>Default templates,<br/>custom overrides]
+        
+        %% Fragment Builder
+        FRAGMENT[Fragment Builder<br/>Context assembly<br/>Code blocks, diffs,<br/>error messages]
+    end
+    
+    %% Evaluator Container
+    subgraph Evaluator["Evaluator Container (openevolve.evaluator)"]
+        
+        %% Main Evaluator
+        EVAL_MAIN[Evaluator Class<br/>Evaluation coordinator<br/>Cascade orchestration,<br/>parallel execution]
+        
+        %% Cascade Stages
+        STAGE1[Stage 1: Quick Validation<br/>Syntax check<br/>Import verification,<br/>basic safety]
+        
+        STAGE2[Stage 2: Basic Testing<br/>Unit tests<br/>Smoke tests,<br/>correctness checks]
+        
+        STAGE3[Stage 3: Comprehensive<br/>Full benchmarks<br/>Performance measurement,<br/>quality assessment]
+        
+        %% Task Pool
+        TASKPOOL[TaskPool<br/>Async concurrency<br/>Semaphore-based,<br/>parallel evaluation]
+        
+        %% Execution
+        EXEC[Code Executor<br/>Subprocess isolation<br/>Timeout enforcement,<br/>resource limits]
+        
+        %% Result Processing
+        RESULT[Result Processor<br/>Metrics extraction<br/>Artifact collection,<br/>error aggregation]
+        
+        %% User Evaluator
+        USER_EVAL[User Evaluation Function<br/>Custom logic<br/>Domain-specific tests,<br/>scoring]
+    end
+    
+    %% External Systems
+    LLM_API[LLM API Service]
+    CODE_ENV[Code Execution Environment]
+    
+    %% LLM Flow
+    WORKER -->|Requests mutation| ENSEMBLE
+    ENSEMBLE -->|Selects model| SELECTOR
+    ENSEMBLE -->|Builds prompt| SAMPLER
+    SELECTOR -->|Chooses| OPENAI
+    OPENAI -->|Implements| INTERFACE
+    OPENAI -->|Uses| RETRY
+    RETRY -->|Calls| LLM_API
+    LLM_API -->|Returns code| RETRY
+    RETRY -->|Returns to| OPENAI
+    OPENAI -->|Returns to| ENSEMBLE
+    
+    %% Prompt Building
+    SAMPLER -->|Loads templates| TEMPLATE
+    TEMPLATE -->|Reads from| TMPL_STORE
+    SAMPLER -->|Assembles fragments| FRAGMENT
+    FRAGMENT -->|Includes code/diffs| SAMPLER
+    SAMPLER -->|Returns prompt| ENSEMBLE
+    ENSEMBLE -->|Sends to| OPENAI
+    
+    %% Evaluation Flow
+    WORKER -->|Submits program| EVAL_MAIN
+    EVAL_MAIN -->|Creates task| TASKPOOL
+    TASKPOOL -->|Executes stage 1| STAGE1
+    STAGE1 -->|Pass: continues| STAGE2
+    STAGE1 -->|Fail: stops| RESULT
+    STAGE2 -->|Pass: continues| STAGE3
+    STAGE2 -->|Fail: stops| RESULT
+    STAGE3 -->|Always continues| RESULT
+    
+    %% Stage Execution
+    STAGE1 -->|Validates| EXEC
+    STAGE2 -->|Tests| EXEC
+    STAGE3 -->|Benchmarks| USER_EVAL
+    USER_EVAL -->|Runs in| EXEC
+    EXEC -->|Executes in| CODE_ENV
+    CODE_ENV -->|Returns output| EXEC
+    EXEC -->|Returns to stages| STAGE3
+    
+    %% Result Processing
+    RESULT -->|Extracts metrics| RESULT
+    RESULT -->|Collects artifacts| RESULT
+    RESULT -->|Returns to| EVAL_MAIN
+    EVAL_MAIN -->|Returns to| WORKER
+
+    %% Styling
+    classDef llmClass fill:#1e88e5,stroke:#0d47a1,stroke-width:2px,color:#fff
+    classDef promptClass fill:#ab47bc,stroke:#6a1b9a,stroke-width:2px,color:#fff
+    classDef evalClass fill:#66bb6a,stroke:#2e7d32,stroke-width:2px,color:#fff
+    classDef externalClass fill:#9e9e9e,stroke:#424242,stroke-width:2px,color:#fff
+    classDef userClass fill:#ffa726,stroke:#e65100,stroke-width:2px,color:#000
+    
+    class WORKER externalClass
+    class ENSEMBLE,OPENAI,INTERFACE,RETRY,SELECTOR llmClass
+    class SAMPLER,TEMPLATE,TMPL_STORE,FRAGMENT promptClass
+    class EVAL_MAIN,STAGE1,STAGE2,STAGE3,TASKPOOL,EXEC,RESULT evalClass
+    class USER_EVAL userClass
+    class LLM_API,CODE_ENV externalClass
+
+    %% Metadata
+    %% Commit: 1c88c4a3df6032aae4052bb543f44ece15f03901
+    %% Generated: 2025-11-09
+    %% Description: C4 Component diagram for LLM, Prompt, and Evaluator containers

@@ -1,0 +1,607 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "system": "OpenEvolve",
+  "commit": "1c88c4a3df6032aae4052bb543f44ece15f03901",
+  "languages": [
+    "Python 3.10+"
+  ],
+  "containers": [
+    {
+      "name": "CLI Application",
+      "tech": "Python + argparse",
+      "responsibilities": [
+        "Command-line interface",
+        "Argument parsing",
+        "User interaction"
+      ],
+      "deps": [
+        "Controller",
+        "Config"
+      ]
+    },
+    {
+      "name": "Library API",
+      "tech": "Python module",
+      "responsibilities": [
+        "Programmatic interface",
+        "run_evolution() function",
+        "evolve_function() helper"
+      ],
+      "deps": [
+        "Controller",
+        "Config"
+      ]
+    },
+    {
+      "name": "Controller",
+      "tech": "Python",
+      "responsibilities": [
+        "Evolution loop orchestration",
+        "Lifecycle management",
+        "Checkpoint coordination",
+        "Best program tracking"
+      ],
+      "deps": [
+        "Database",
+        "Evaluator",
+        "LLM Ensemble",
+        "Process Pool"
+      ]
+    },
+    {
+      "name": "Program Database",
+      "tech": "Python + JSON",
+      "responsibilities": [
+        "MAP-Elites storage",
+        "Island management",
+        "Program sampling",
+        "Migration coordination"
+      ],
+      "deps": [
+        "Embedding Client"
+      ]
+    },
+    {
+      "name": "LLM Ensemble",
+      "tech": "Python + HTTP",
+      "responsibilities": [
+        "Multi-model generation",
+        "Retry logic",
+        "Fallback orchestration"
+      ],
+      "deps": [
+        "OpenAI Client",
+        "Prompt Sampler"
+      ]
+    },
+    {
+      "name": "Evaluator",
+      "tech": "Python + subprocess",
+      "responsibilities": [
+        "Cascade evaluation",
+        "Parallel execution",
+        "Artifact collection"
+      ],
+      "deps": [
+        "Task Pool"
+      ]
+    },
+    {
+      "name": "Process Pool",
+      "tech": "Python multiprocessing",
+      "responsibilities": [
+        "Worker process management",
+        "Parallel iteration execution",
+        "Database snapshot serialization"
+      ],
+      "deps": [
+        "Controller"
+      ]
+    },
+    {
+      "name": "Visualizer",
+      "tech": "Flask + JavaScript",
+      "responsibilities": [
+        "Web-based UI",
+        "Evolution tree viewer",
+        "Interactive graphs"
+      ],
+      "deps": [
+        "Checkpoint Storage"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "container": "Controller",
+      "name": "OpenEvolve",
+      "path": "openevolve/controller.py",
+      "deps": [
+        "Config",
+        "Database",
+        "Evaluator",
+        "LLM"
+      ],
+      "layer": "application"
+    },
+    {
+      "container": "Database",
+      "name": "ProgramDatabase",
+      "path": "openevolve/database.py",
+      "deps": [
+        "Config",
+        "Utils"
+      ],
+      "layer": "domain"
+    },
+    {
+      "container": "Database",
+      "name": "Program",
+      "path": "openevolve/database.py",
+      "deps": [],
+      "layer": "domain"
+    },
+    {
+      "container": "Database",
+      "name": "Island",
+      "path": "openevolve/database.py",
+      "deps": [
+        "Program"
+      ],
+      "layer": "domain"
+    },
+    {
+      "container": "LLM",
+      "name": "LLMEnsemble",
+      "path": "openevolve/llm/ensemble.py",
+      "deps": [
+        "LLMInterface",
+        "Config"
+      ],
+      "layer": "application"
+    },
+    {
+      "container": "LLM",
+      "name": "OpenAILLM",
+      "path": "openevolve/llm/openai.py",
+      "deps": [
+        "LLMInterface"
+      ],
+      "layer": "infrastructure"
+    },
+    {
+      "container": "Evaluator",
+      "name": "Evaluator",
+      "path": "openevolve/evaluator.py",
+      "deps": [
+        "Config",
+        "TaskPool"
+      ],
+      "layer": "application"
+    },
+    {
+      "container": "Prompt",
+      "name": "PromptSampler",
+      "path": "openevolve/prompt/sampler.py",
+      "deps": [
+        "Database",
+        "Templates"
+      ],
+      "layer": "application"
+    }
+  ],
+  "pipelines": [
+    {
+      "name": "Evolution Loop",
+      "stages": [
+        {
+          "id": "init",
+          "title": "Initialization",
+          "files": [
+            "controller.py",
+            "database.py",
+            "config.py"
+          ],
+          "inputs": [
+            "initial_program",
+            "evaluator",
+            "config.yaml"
+          ],
+          "outputs": [
+            "database_initialized",
+            "best_program_tracked"
+          ]
+        },
+        {
+          "id": "sample",
+          "title": "Sample Programs",
+          "files": [
+            "database.py"
+          ],
+          "inputs": [
+            "island_grids"
+          ],
+          "outputs": [
+            "parent_program",
+            "inspiration_programs"
+          ]
+        },
+        {
+          "id": "generate",
+          "title": "LLM Generation",
+          "files": [
+            "llm/ensemble.py",
+            "llm/openai.py",
+            "prompt/sampler.py"
+          ],
+          "inputs": [
+            "parent_program",
+            "inspiration_programs",
+            "artifacts"
+          ],
+          "outputs": [
+            "mutated_code"
+          ]
+        },
+        {
+          "id": "evaluate",
+          "title": "Cascade Evaluation",
+          "files": [
+            "evaluator.py"
+          ],
+          "inputs": [
+            "mutated_code"
+          ],
+          "outputs": [
+            "evaluation_result",
+            "metrics",
+            "artifacts"
+          ]
+        },
+        {
+          "id": "store",
+          "title": "Store Result",
+          "files": [
+            "database.py"
+          ],
+          "inputs": [
+            "program",
+            "metrics",
+            "features"
+          ],
+          "outputs": [
+            "updated_grid",
+            "best_updated"
+          ]
+        },
+        {
+          "id": "migrate",
+          "title": "Island Migration",
+          "files": [
+            "database.py"
+          ],
+          "inputs": [
+            "islands",
+            "generation_counts"
+          ],
+          "outputs": [
+            "migrated_programs"
+          ]
+        },
+        {
+          "id": "checkpoint",
+          "title": "Checkpoint State",
+          "files": [
+            "controller.py"
+          ],
+          "inputs": [
+            "database",
+            "config",
+            "metadata"
+          ],
+          "outputs": [
+            "checkpoint_directory"
+          ]
+        }
+      ],
+      "entrypoints": [
+        "openevolve-run.py",
+        "openevolve.api.run_evolution"
+      ]
+    },
+    {
+      "name": "LLM Generation",
+      "stages": [
+        {
+          "id": "build_prompt",
+          "title": "Build Prompt",
+          "files": [
+            "prompt/sampler.py",
+            "prompt/templates.py"
+          ],
+          "inputs": [
+            "parent_code",
+            "inspiration",
+            "artifacts",
+            "templates"
+          ],
+          "outputs": [
+            "complete_prompt"
+          ]
+        },
+        {
+          "id": "select_model",
+          "title": "Model Selection",
+          "files": [
+            "llm/ensemble.py"
+          ],
+          "inputs": [
+            "models",
+            "weights"
+          ],
+          "outputs": [
+            "selected_model"
+          ]
+        },
+        {
+          "id": "call_api",
+          "title": "API Call with Retry",
+          "files": [
+            "llm/openai.py"
+          ],
+          "inputs": [
+            "prompt",
+            "model_config"
+          ],
+          "outputs": [
+            "generated_code"
+          ]
+        },
+        {
+          "id": "parse",
+          "title": "Parse Response",
+          "files": [
+            "utils/code_utils.py"
+          ],
+          "inputs": [
+            "api_response"
+          ],
+          "outputs": [
+            "extracted_code"
+          ]
+        }
+      ],
+      "entrypoints": [
+        "llm/ensemble.py:generate"
+      ]
+    },
+    {
+      "name": "Cascade Evaluation",
+      "stages": [
+        {
+          "id": "stage1",
+          "title": "Stage 1: Validation",
+          "files": [
+            "evaluator.py"
+          ],
+          "inputs": [
+            "program_path"
+          ],
+          "outputs": [
+            "syntax_valid",
+            "imports_ok"
+          ]
+        },
+        {
+          "id": "stage2",
+          "title": "Stage 2: Basic Testing",
+          "files": [
+            "evaluator.py",
+            "user_evaluator.py"
+          ],
+          "inputs": [
+            "program_path"
+          ],
+          "outputs": [
+            "tests_passed"
+          ]
+        },
+        {
+          "id": "stage3",
+          "title": "Stage 3: Comprehensive",
+          "files": [
+            "evaluator.py",
+            "user_evaluator.py"
+          ],
+          "inputs": [
+            "program_path"
+          ],
+          "outputs": [
+            "metrics",
+            "artifacts"
+          ]
+        },
+        {
+          "id": "process",
+          "title": "Process Results",
+          "files": [
+            "evaluator.py"
+          ],
+          "inputs": [
+            "raw_metrics"
+          ],
+          "outputs": [
+            "evaluation_result"
+          ]
+        }
+      ],
+      "entrypoints": [
+        "evaluator.py:evaluate_program"
+      ]
+    }
+  ],
+  "stores": [
+    {
+      "type": "in-memory",
+      "usage": "Program database, MAP-Elites grids",
+      "collections": [
+        "islands",
+        "programs",
+        "grids"
+      ]
+    },
+    {
+      "type": "file-system",
+      "usage": "Checkpoints, artifacts, logs",
+      "tables": [
+        "checkpoint_N/",
+        "artifacts/",
+        "traces/"
+      ]
+    }
+  ],
+  "integrations": [
+    {
+      "name": "OpenAI API",
+      "paths": [
+        "llm/openai.py"
+      ]
+    },
+    {
+      "name": "Google Gemini API",
+      "paths": [
+        "llm/openai.py"
+      ]
+    },
+    {
+      "name": "Embedding API",
+      "paths": [
+        "embedding.py"
+      ]
+    }
+  ],
+  "apis": [
+    {
+      "name": "CLI",
+      "type": "cli",
+      "endpoints": [
+        "openevolve-run.py"
+      ],
+      "spec": {
+        "args": [
+          "initial_program",
+          "evaluator"
+        ],
+        "options": [
+          "--config",
+          "--iterations",
+          "--checkpoint",
+          "--output-dir"
+        ]
+      }
+    },
+    {
+      "name": "Library API",
+      "type": "rest",
+      "endpoints": [
+        "run_evolution",
+        "evolve_function"
+      ],
+      "spec": {
+        "functions": [
+          "run_evolution(initial_program, evaluator, iterations, config)"
+        ]
+      }
+    }
+  ],
+  "metrics": {
+    "cycles": [],
+    "hotspots": [
+      "database.py",
+      "evaluator.py",
+      "llm/openai.py"
+    ],
+    "test_coverage": {
+      "overall": 75,
+      "by_module": {
+        "database": 85,
+        "controller": 70,
+        "evaluator": 75,
+        "llm": 60,
+        "prompt": 65
+      }
+    }
+  },
+  "risks": [
+    {
+      "id": "RISK-001",
+      "title": "Arbitrary code execution without sandboxing",
+      "severity": "H",
+      "where": "evaluator.py",
+      "rationale": "User code runs with full system permissions, potential for malicious actions"
+    },
+    {
+      "id": "RISK-002",
+      "title": "Circular imports potential",
+      "severity": "M",
+      "where": "database.py \u2194 controller.py",
+      "rationale": "Current imports work but structure could lead to cycles with future changes"
+    },
+    {
+      "id": "RISK-003",
+      "title": "API keys in environment variables",
+      "severity": "M",
+      "where": "System-wide",
+      "rationale": "Keys visible in process listings and logs"
+    },
+    {
+      "id": "RISK-004",
+      "title": "No rate limiting on LLM calls",
+      "severity": "M",
+      "where": "llm/openai.py",
+      "rationale": "Could exceed API rate limits causing failures"
+    },
+    {
+      "id": "RISK-005",
+      "title": "Large artifacts in memory",
+      "severity": "M",
+      "where": "database.py",
+      "rationale": "Artifacts >10KB stored in DB cause memory bloat"
+    },
+    {
+      "id": "RISK-006",
+      "title": "Process pool exhaustion",
+      "severity": "M",
+      "where": "process_parallel.py",
+      "rationale": "No backpressure mechanism for task queue"
+    },
+    {
+      "id": "RISK-007",
+      "title": "No structured observability",
+      "severity": "L",
+      "where": "System-wide",
+      "rationale": "Lacks metrics/tracing infrastructure"
+    },
+    {
+      "id": "RISK-008",
+      "title": "Database corruption on crashes",
+      "severity": "L",
+      "where": "database.py",
+      "rationale": "No write-ahead logging for crash recovery"
+    },
+    {
+      "id": "RISK-009",
+      "title": "Prompt injection via artifacts",
+      "severity": "M",
+      "where": "prompt/sampler.py",
+      "rationale": "Artifacts included raw without sanitization"
+    },
+    {
+      "id": "RISK-010",
+      "title": "Unbounded checkpoint storage",
+      "severity": "L",
+      "where": "controller.py",
+      "rationale": "No automatic cleanup of old checkpoints"
+    }
+  ]
+}
